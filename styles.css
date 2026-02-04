@@ -85,6 +85,15 @@ body {
   padding: 28px 48px 32px;
 }
 
+.top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 24px;
+  padding: 24px 48px 0;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
 .sidebar,
 .content,
 .study-room {
@@ -453,11 +462,72 @@ body {
 
 
 .sites-section {
-  margin: 0 48px 48px;
+  margin: 0;
   background: var(--card);
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 20px;
+}
+
+.todo-card {
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.todo-input {
+  display: flex;
+  gap: 8px;
+}
+
+.todo-input input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f7f9fc;
+}
+
+.todo-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.todo-item.done .todo-text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.todo-empty {
+  font-size: 12px;
+  color: var(--muted);
+  background: #f7f9fc;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
 }
 
 .section-actions {
@@ -600,6 +670,11 @@ body {
 }
 
 @media (max-width: 1024px) {
+  .top-row {
+    grid-template-columns: 1fr;
+    padding: 20px 24px 0;
+    max-width: none;
+  }
   .layout {
     grid-template-columns: 1fr;
   }

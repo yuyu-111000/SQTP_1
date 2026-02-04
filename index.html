@@ -21,6 +21,37 @@
     </div>
   </header>
 
+  <section class="top-row">
+    <section class="sites-section">
+      <div class="content-header">
+        <div>
+          <h2>常用网站</h2>
+          <div class="chip">快捷访问网站主页</div>
+        </div>
+        <div class="section-actions">
+          <input id="section-name" type="text" placeholder="新建分区名称" />
+          <button class="btn ghost" id="add-section">新建分区</button>
+          <button class="btn primary" id="open-add-site">+ 添加网站</button>
+        </div>
+      </div>
+      <div id="site-container" class="site-sections"></div>
+    </section>
+
+    <section class="todo-card">
+      <div class="content-header">
+        <div>
+          <h2>待办</h2>
+          <div class="chip">今天的任务</div>
+        </div>
+      </div>
+      <div class="todo-input">
+        <input id="todo-input" type="text" placeholder="添加一个待办..." />
+        <button class="btn primary" id="add-todo">添加</button>
+      </div>
+      <div class="todo-list" id="todo-list"></div>
+    </section>
+  </section>
+
   <main class="layout">
     <aside class="sidebar">
       <section class="nav-section">
@@ -77,21 +108,6 @@
       <input id="room-quote" type="text" placeholder="保持节奏，别急。" />
     </div>
   </aside>
-
-  <section class="sites-section">
-    <div class="content-header">
-      <div>
-        <h2>常用网站</h2>
-        <div class="chip">快捷访问网站主页</div>
-      </div>
-      <div class="section-actions">
-        <input id="section-name" type="text" placeholder="新建分区名称" />
-        <button class="btn ghost" id="add-section">新建分区</button>
-        <button class="btn primary" id="open-add-site">+ 添加网站</button>
-      </div>
-    </div>
-    <div id="site-container" class="site-sections"></div>
-  </section>
 
   <div class="modal" id="add-site-modal">
     <div class="modal-card">

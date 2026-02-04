@@ -50,7 +50,10 @@ const els = {
   cancelComment: document.getElementById("cancel-comment"),
   submitComment: document.getElementById("submit-comment"),
   commentUser: document.getElementById("comment-user"),
-  commentContent: document.getElementById("comment-content")
+  commentContent: document.getElementById("comment-content"),
+  todoInput: document.getElementById("todo-input"),
+  addTodo: document.getElementById("add-todo"),
+  todoList: document.getElementById("todo-list")
 };
 
 const storage = {
@@ -60,6 +63,7 @@ const storage = {
   siteSectionsKey: "siteSections",
   siteAssignmentsKey: "siteAssignments",
   roomQuoteKey: "studyRoomQuote",
+  todoKey: "todoItems",
   getComments() {
     return JSON.parse(localStorage.getItem(this.commentsKey) || "{}");
   },
@@ -97,6 +101,12 @@ const storage = {
   },
   setRoomQuote(value) {
     localStorage.setItem(this.roomQuoteKey, value);
+  },
+  getTodos() {
+    return JSON.parse(localStorage.getItem(this.todoKey) || "[]");
+  },
+  setTodos(data) {
+    localStorage.setItem(this.todoKey, JSON.stringify(data));
   }
 };
 
@@ -112,6 +122,7 @@ async function loadData() {
   updatePomodoroView();
   initCategories();
   initOnlineCount();
+  renderTodos();
 }
 
 function initCategories() {
@@ -200,6 +211,79 @@ function renderSites() {
 
     els.siteContainer.appendChild(block);
   });
+}
+
+function renderTodos() {
+  const list = storage.getTodos();
+  els.todoList.innerHTML = "";
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "todo-empty";
+    empty.textContent = "暂无待办，先添加一个目标吧。";
+    els.todoList.appendChild(empty);
+    return;
+  }
+  list.forEach((todo) => {
+    els.todoList.appendChild(createTodoItem(todo));
+  });
+}
+
+function createTodoItem(todo) {
+  const item = document.createElement("div");
+  item.className = `todo-item${todo.done ? " done" : ""}`;
+
+  const label = document.createElement("label");
+  label.className = "todo-check";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = Boolean(todo.done);
+  checkbox.addEventListener("change", () => toggleTodo(todo.id));
+
+  const text = document.createElement("span");
+  text.className = "todo-text";
+  text.textContent = todo.text;
+
+  label.appendChild(checkbox);
+  label.appendChild(text);
+
+  const del = document.createElement("button");
+  del.className = "btn ghost btn-xs";
+  del.textContent = "删除";
+  del.addEventListener("click", () => deleteTodo(todo.id));
+
+  item.appendChild(label);
+  item.appendChild(del);
+  return item;
+}
+
+function addTodo() {
+  const text = els.todoInput.value.trim();
+  if (!text) return;
+  const list = storage.getTodos();
+  list.unshift({
+    id: `todo_${Date.now()}`,
+    text,
+    done: false
+  });
+  storage.setTodos(list);
+  els.todoInput.value = "";
+  renderTodos();
+}
+
+function toggleTodo(todoId) {
+  const list = storage.getTodos();
+  const target = list.find((todo) => todo.id === todoId);
+  if (!target) return;
+  target.done = !target.done;
+  storage.setTodos(list);
+  renderTodos();
+}
+
+function deleteTodo(todoId) {
+  const list = storage.getTodos().filter((todo) => todo.id !== todoId);
+  storage.setTodos(list);
+  renderTodos();
 }
 
 function createResourceCard(item) {
@@ -573,6 +657,10 @@ function bindEvents() {
   els.saveAddSite.addEventListener("click", saveCustomSite);
   els.cancelComment.addEventListener("click", closeComments);
   els.submitComment.addEventListener("click", submitComment);
+  els.addTodo.addEventListener("click", addTodo);
+  els.todoInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") addTodo();
+  });
   els.pomodoroToggle.addEventListener("click", togglePomodoro);
   els.pomodoroTime.addEventListener("click", () => {
     els.timePicker.classList.toggle("show");
