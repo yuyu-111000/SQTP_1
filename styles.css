@@ -19,6 +19,10 @@ body {
   font-family: "Source Han Sans SC", "Noto Sans SC", sans-serif;
   color: var(--text);
   background: linear-gradient(180deg, #eef3fb 0%, #f7f8fb 100%);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .site-header {
@@ -83,7 +87,10 @@ body {
   grid-template-columns: 240px minmax(0, 1fr) minmax(240px, 320px);
   gap: 24px;
   padding: 28px 48px 32px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .top-row {
@@ -91,8 +98,7 @@ body {
   grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
   gap: 24px;
   padding: 24px 48px 0;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .sidebar,
@@ -102,6 +108,23 @@ body {
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 18px;
+}
+
+.sidebar,
+.content,
+.later-card {
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+.content {
+  overflow-y: auto;
+}
+
+.sidebar,
+.later-card {
+  overflow: hidden;
 }
 
 
@@ -198,7 +221,7 @@ body {
 
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -452,6 +475,16 @@ body {
   backdrop-filter: blur(14px);
   border: 1px solid rgba(227, 232, 241, 0.5);
   box-shadow: 0 10px 30px rgba(24, 40, 72, 0.06);
+}
+
+.study-room .room-header {
+  cursor: move;
+  touch-action: none;
+}
+
+.study-room.dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .room-toggle {

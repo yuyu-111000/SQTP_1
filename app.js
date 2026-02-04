@@ -52,7 +52,10 @@ const els = {
   commentUser: document.getElementById("comment-user"),
   commentContent: document.getElementById("comment-content"),
   openUpload: document.getElementById("open-upload"),
+  openApply: document.getElementById("open-apply"),
   uploadModal: document.getElementById("upload-modal"),
+  uploadModalTitle: document.getElementById("upload-modal-title"),
+  uploadTitleLabel: document.getElementById("upload-title-label"),
   cancelUpload: document.getElementById("cancel-upload"),
   saveUpload: document.getElementById("save-upload"),
   uploadTitle: document.getElementById("upload-title"),
@@ -64,6 +67,15 @@ const els = {
   addTodo: document.getElementById("add-todo"),
   todoList: document.getElementById("todo-list"),
   laterList: document.getElementById("later-list")
+};
+
+const uiState = {
+  uploadMode: "upload",
+  drag: {
+    active: false,
+    offsetX: 0,
+    offsetY: 0
+  }
 };
 
 const storage = {
@@ -358,7 +370,17 @@ function getUploadsForCategory(categoryId) {
   return uploads[categoryId] || [];
 }
 
-function openUploadModal() {
+function openUploadModal(mode = "upload") {
+  uiState.uploadMode = mode;
+  if (mode === "apply") {
+    els.uploadModalTitle.textContent = "新建栏目申请";
+    els.uploadTitleLabel.textContent = "你要为该栏目上传的第一个内容";
+    els.saveUpload.textContent = "保存并提交申请";
+  } else {
+    els.uploadModalTitle.textContent = "上传学习内容";
+    els.uploadTitleLabel.textContent = "标题";
+    els.saveUpload.textContent = "保存";
+  }
   els.uploadModal.classList.add("show");
 }
 
@@ -375,6 +397,11 @@ function saveUpload() {
   const title = els.uploadTitle.value.trim();
   const url = els.uploadUrl.value.trim();
   if (!title || !url || !state.activeResourceCategory) return;
+  if (uiState.uploadMode === "apply") {
+    closeUploadModal();
+    alert("管理员已收到你的新建栏目申请，请耐心等待");
+    return;
+  }
   const desc = els.uploadDesc.value.trim();
   const platform = els.uploadPlatform.value.trim();
   const tags = els.uploadTags.value
@@ -729,34 +756,32 @@ function closeAddSiteModal() {
   els.siteDesc.value = "";
 }
 
-function saveCustomSite() {
-  const title = els.siteTitle.value.trim();
-  const url = els.siteUrl.value.trim();
-  if (!title || !url) return;
-  const desc = els.siteDesc.value.trim();
-  const list = storage.getCustomSites();
-  list.push({
-    id: `u_${Date.now()}`,
-    title,
-    url,
-    description: desc,
-    iconUrl: ""
-  });
-  storage.setCustomSites(list);
-  closeAddSiteModal();
-  renderSites();
+function handleRoomDragStart(event) {
+  if (event.button !== 0) return;
+  uiState.drag.active = true;
+  const rect = els.studyRoom.getBoundingClientRect();
+  uiState.drag.offsetX = event.clientX - rect.left;
+  uiState.drag.offsetY = event.clientY - rect.top;
+  els.studyRoom.classList.add("dragging");
+  els.studyRoom.style.right = "auto";
+  event.preventDefault();
 }
 
-function addSiteSection() {
-  const name = els.sectionName.value.trim();
-  if (!name) return;
-  const sections = storage.getSiteSections();
-  sections.push({ id: `sec_${Date.now()}`, name });
-  storage.setSiteSections(sections);
-  els.sectionName.value = "";
-  renderSites();
+function handleRoomDragMove(event) {
+  if (!uiState.drag.active) return;
+  const maxLeft = window.innerWidth - els.studyRoom.offsetWidth;
+  const maxTop = window.innerHeight - els.studyRoom.offsetHeight;
+  const nextLeft = Math.min(Math.max(0, event.clientX - uiState.drag.offsetX), maxLeft);
+  const nextTop = Math.min(Math.max(0, event.clientY - uiState.drag.offsetY), maxTop);
+  els.studyRoom.style.left = `${nextLeft}px`;
+  els.studyRoom.style.top = `${nextTop}px`;
 }
 
+function handleRoomDragEnd() {
+  if (!uiState.drag.active) return;
+  uiState.drag.active = false;
+  els.studyRoom.classList.remove("dragging");
+}
 function renameSection(sectionId) {
   const sections = storage.getSiteSections();
   const target = sections.find((s) => s.id === sectionId);
@@ -793,16 +818,29 @@ function bindEvents() {
   els.todoInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") addTodo();
   });
-  els.openUpload.addEventListener("click", openUploadModal);
+  els.openUpload.addEventListener("click", () => openUploadModal("upload"));
+  els.openApply.addEventListener("click", () => openUploadModal("apply"));
   els.cancelUpload.addEventListener("click", closeUploadModal);
   els.saveUpload.addEventListener("click", saveUpload);
   els.pomodoroToggle.addEventListener("click", togglePomodoro);
-  els.pomodoroTime.addEventListener("click", () => {
+  els.pomodoroTime.addEventListener("click", (event) => {
+    event.stopPropagation();
     els.timePicker.classList.toggle("show");
   });
   els.timeHours.addEventListener("change", applyTimePicker);
   els.timeMinutes.addEventListener("change", applyTimePicker);
   els.timeSeconds.addEventListener("change", applyTimePicker);
+  document.addEventListener("click", (event) => {
+    if (!els.timeWrap.contains(event.target)) {
+      els.timePicker.classList.remove("show");
+    }
+  });
+  const roomHeader = els.studyRoom.querySelector(".room-header");
+  if (roomHeader) {
+    roomHeader.addEventListener("pointerdown", handleRoomDragStart);
+  }
+  document.addEventListener("pointermove", handleRoomDragMove);
+  document.addEventListener("pointerup", handleRoomDragEnd);
   els.roomQuote.addEventListener("change", () => {
     storage.setRoomQuote(els.roomQuote.value.trim());
   });

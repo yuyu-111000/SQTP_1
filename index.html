@@ -17,7 +17,7 @@
       </div>
     </div>
     <div class="header-search">
-      <input id="search-input" type="search" placeholder="搜索学科资料或常用网站..." />
+      <input id="search-input" type="search" placeholder="输入资料的关键词..." />
     </div>
   </header>
 
@@ -68,6 +68,7 @@
         </div>
         <div class="content-actions">
           <button class="btn ghost" id="open-upload">上传内容</button>
+          <button class="btn ghost" id="open-apply">申请添加</button>
           <div class="sort-group">
             <label class="sort-label" for="sort-select">排序</label>
             <select id="sort-select">
@@ -163,9 +164,9 @@
 
   <div class="modal" id="upload-modal">
     <div class="modal-card">
-      <h3>上传学习内容</h3>
+      <h3 id="upload-modal-title">上传学习内容</h3>
       <div class="form-group">
-        <label>标题</label>
+        <label id="upload-title-label">标题</label>
         <input id="upload-title" type="text" placeholder="例如：数据结构课程笔记" />
       </div>
       <div class="form-group">
