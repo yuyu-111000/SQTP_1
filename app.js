@@ -51,9 +51,19 @@ const els = {
   submitComment: document.getElementById("submit-comment"),
   commentUser: document.getElementById("comment-user"),
   commentContent: document.getElementById("comment-content"),
+  openUpload: document.getElementById("open-upload"),
+  uploadModal: document.getElementById("upload-modal"),
+  cancelUpload: document.getElementById("cancel-upload"),
+  saveUpload: document.getElementById("save-upload"),
+  uploadTitle: document.getElementById("upload-title"),
+  uploadUrl: document.getElementById("upload-url"),
+  uploadDesc: document.getElementById("upload-desc"),
+  uploadTags: document.getElementById("upload-tags"),
+  uploadPlatform: document.getElementById("upload-platform"),
   todoInput: document.getElementById("todo-input"),
   addTodo: document.getElementById("add-todo"),
-  todoList: document.getElementById("todo-list")
+  todoList: document.getElementById("todo-list"),
+  laterList: document.getElementById("later-list")
 };
 
 const storage = {
@@ -64,6 +74,8 @@ const storage = {
   siteAssignmentsKey: "siteAssignments",
   roomQuoteKey: "studyRoomQuote",
   todoKey: "todoItems",
+  uploadKey: "resourceUploadsByCategory",
+  laterKey: "laterStudyList",
   getComments() {
     return JSON.parse(localStorage.getItem(this.commentsKey) || "{}");
   },
@@ -107,6 +119,18 @@ const storage = {
   },
   setTodos(data) {
     localStorage.setItem(this.todoKey, JSON.stringify(data));
+  },
+  getUploads() {
+    return JSON.parse(localStorage.getItem(this.uploadKey) || "{}");
+  },
+  setUploads(data) {
+    localStorage.setItem(this.uploadKey, JSON.stringify(data));
+  },
+  getLaterList() {
+    return JSON.parse(localStorage.getItem(this.laterKey) || "[]");
+  },
+  setLaterList(data) {
+    localStorage.setItem(this.laterKey, JSON.stringify(data));
   }
 };
 
@@ -123,6 +147,7 @@ async function loadData() {
   initCategories();
   initOnlineCount();
   renderTodos();
+  renderLaterList();
 }
 
 function initCategories() {
@@ -162,7 +187,8 @@ function renderResources() {
   els.resourceTitle.textContent = category?.name || "学科资源";
   els.resourceSubtitle.textContent = "按学科分类的资料入口";
   els.resourceContainer.innerHTML = "";
-  const resources = applyResourceFilters(category?.resources || []);
+  const uploads = getUploadsForCategory(category?.id);
+  const resources = applyResourceFilters([...(uploads || []), ...(category?.resources || [])]);
   resources.forEach((item) => {
     els.resourceContainer.appendChild(createResourceCard(item));
   });
@@ -286,14 +312,107 @@ function deleteTodo(todoId) {
   renderTodos();
 }
 
+function renderLaterList() {
+  const list = storage.getLaterList();
+  els.laterList.innerHTML = "";
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "later-empty";
+    empty.textContent = "暂无收藏，先挑一个内容吧。";
+    els.laterList.appendChild(empty);
+    return;
+  }
+  list.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "later-item";
+    row.innerHTML = `
+      <span>${item.title}</span>
+      <button class="btn ghost btn-xs" data-id="${item.id}">移除</button>
+    `;
+    row.querySelector("button").addEventListener("click", () => removeFromLaterList(item.id));
+    els.laterList.appendChild(row);
+  });
+}
+
+function addToLaterList(item) {
+  const list = storage.getLaterList();
+  if (list.some((entry) => entry.id === item.id)) return;
+  list.unshift({
+    id: item.id,
+    title: item.title,
+    url: item.url || ""
+  });
+  storage.setLaterList(list);
+  renderLaterList();
+}
+
+function removeFromLaterList(itemId) {
+  const list = storage.getLaterList().filter((item) => item.id !== itemId);
+  storage.setLaterList(list);
+  renderLaterList();
+}
+
+function getUploadsForCategory(categoryId) {
+  if (!categoryId) return [];
+  const uploads = storage.getUploads();
+  return uploads[categoryId] || [];
+}
+
+function openUploadModal() {
+  els.uploadModal.classList.add("show");
+}
+
+function closeUploadModal() {
+  els.uploadModal.classList.remove("show");
+  els.uploadTitle.value = "";
+  els.uploadUrl.value = "";
+  els.uploadDesc.value = "";
+  els.uploadTags.value = "";
+  els.uploadPlatform.value = "";
+}
+
+function saveUpload() {
+  const title = els.uploadTitle.value.trim();
+  const url = els.uploadUrl.value.trim();
+  if (!title || !url || !state.activeResourceCategory) return;
+  const desc = els.uploadDesc.value.trim();
+  const platform = els.uploadPlatform.value.trim();
+  const tags = els.uploadTags.value
+    .split(/[，,]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  const uploads = storage.getUploads();
+  const list = uploads[state.activeResourceCategory] || [];
+  list.unshift({
+    id: `u_${Date.now()}`,
+    title,
+    url,
+    description: desc,
+    tags,
+    platform,
+    createdAt: Date.now(),
+    comments: []
+  });
+  uploads[state.activeResourceCategory] = list;
+  storage.setUploads(uploads);
+  closeUploadModal();
+  renderResources();
+}
+
 function createResourceCard(item) {
   const card = document.createElement("div");
   card.className = "card";
   const preview = getCommentPreview(item.id);
   const likeCount = getResourceLikeCount(item.id);
+  const tags = [...(item.tags || [])];
+  if (item.platform && !tags.includes(item.platform)) tags.push(item.platform);
   card.innerHTML = `
-    <h3>${item.title}</h3>
-    <div class="tags">${(item.tags || []).map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+    <div class="card-title">
+      <h3>${item.title}</h3>
+      <button class="btn ghost btn-xs" data-action="later">稍后再学</button>
+    </div>
+    <div class="tags">${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
     <p>${item.description || ""}</p>
     <div class="comment-preview">${preview}</div>
     <div class="card-actions">
@@ -303,13 +422,15 @@ function createResourceCard(item) {
       <button class="btn ghost">举报</button>
     </div>
   `;
-  const [openBtn, commentBtn, likeBtn, reportBtn] = card.querySelectorAll("button");
+  const [openBtn, commentBtn, likeBtn, reportBtn] = card.querySelectorAll(".card-actions button");
+  const laterBtn = card.querySelector("[data-action='later']");
   openBtn.addEventListener("click", () => window.open(item.url, "_blank"));
   commentBtn.addEventListener("click", () => openComments(item));
   likeBtn.addEventListener("click", () => addResourceLike(item.id, likeBtn));
   reportBtn.addEventListener("click", () => {
     alert("已收到举报，我们会尽快核查。谢谢反馈！");
   });
+  laterBtn.addEventListener("click", () => addToLaterList(item));
   return card;
 }
 
@@ -370,9 +491,15 @@ function applyResourceFilters(list) {
   if (sort === "hot") {
     result.sort((a, b) => getResourceHeat(b.id) - getResourceHeat(a.id));
   } else if (sort === "new") {
-    result.sort((a, b) => (b.id || 0) - (a.id || 0));
+    result.sort((a, b) => getResourceCreatedAt(b) - getResourceCreatedAt(a));
   }
   return result;
+}
+
+function getResourceCreatedAt(item) {
+  if (typeof item.createdAt === "number") return item.createdAt;
+  const numeric = Number(item.id);
+  return Number.isNaN(numeric) ? 0 : numeric;
 }
 
 function getResourceHeat(resourceId) {
@@ -472,6 +599,11 @@ function addLike(resourceId, commentId) {
 function findResourceById(resourceId) {
   for (const category of state.resourceData) {
     const found = category.resources?.find((item) => item.id === resourceId);
+    if (found) return found;
+  }
+  const uploads = storage.getUploads();
+  for (const list of Object.values(uploads)) {
+    const found = list.find((item) => item.id === resourceId);
     if (found) return found;
   }
   return null;
@@ -661,6 +793,9 @@ function bindEvents() {
   els.todoInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") addTodo();
   });
+  els.openUpload.addEventListener("click", openUploadModal);
+  els.cancelUpload.addEventListener("click", closeUploadModal);
+  els.saveUpload.addEventListener("click", saveUpload);
   els.pomodoroToggle.addEventListener("click", togglePomodoro);
   els.pomodoroTime.addEventListener("click", () => {
     els.timePicker.classList.toggle("show");

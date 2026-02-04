@@ -80,9 +80,10 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr) minmax(240px, 320px);
   gap: 24px;
   padding: 28px 48px 32px;
+  align-items: start;
 }
 
 .top-row {
@@ -147,7 +148,20 @@ body {
   gap: 16px;
 }
 
+.title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .content-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sort-group {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -161,7 +175,7 @@ body {
   color: var(--muted);
 }
 
-.content-actions select {
+.sort-group select {
   border: 1px solid var(--border);
   background: #fff;
   border-radius: 999px;
@@ -213,6 +227,13 @@ body {
 .card h3 {
   margin: 0;
   font-size: 16px;
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .card p {
@@ -572,6 +593,43 @@ body {
 .btn.btn-xs {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+.later-card {
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.later-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.later-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f7f9fc;
+  font-size: 13px;
+}
+
+.later-empty {
+  font-size: 12px;
+  color: var(--muted);
+  background: #f7f9fc;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
 }
 
 .section-title {

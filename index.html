@@ -62,19 +62,34 @@
 
     <section class="content">
       <div class="content-header">
-        <h2 id="resource-title">学科资源</h2>
-        <div class="chip" id="resource-subtitle">按学科分类的资料入口</div>
+        <div class="title-group">
+          <h2 id="resource-title">学科资源</h2>
+          <div class="chip" id="resource-subtitle">按学科分类的资料入口</div>
+        </div>
         <div class="content-actions">
-          <label class="sort-label" for="sort-select">排序</label>
-          <select id="sort-select">
-            <option value="hot" selected>热度优先</option>
-            <option value="new">最新优先</option>
-          </select>
+          <button class="btn ghost" id="open-upload">上传内容</button>
+          <div class="sort-group">
+            <label class="sort-label" for="sort-select">排序</label>
+            <select id="sort-select">
+              <option value="hot" selected>热度优先</option>
+              <option value="new">最新优先</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <div id="resource-container" class="card-grid"></div>
     </section>
+
+    <aside class="later-card">
+      <div class="content-header">
+        <div>
+          <h2>稍后再学</h2>
+          <div class="chip">收藏清单</div>
+        </div>
+      </div>
+      <div class="later-list" id="later-list"></div>
+    </aside>
 
   </main>
 
@@ -142,6 +157,36 @@
       <div class="modal-actions">
         <button class="btn ghost" id="cancel-comment">关闭</button>
         <button class="btn primary" id="submit-comment">发布评论</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="upload-modal">
+    <div class="modal-card">
+      <h3>上传学习内容</h3>
+      <div class="form-group">
+        <label>标题</label>
+        <input id="upload-title" type="text" placeholder="例如：数据结构课程笔记" />
+      </div>
+      <div class="form-group">
+        <label>链接</label>
+        <input id="upload-url" type="url" placeholder="https://" />
+      </div>
+      <div class="form-group">
+        <label>简介</label>
+        <input id="upload-desc" type="text" placeholder="一句话描述内容" />
+      </div>
+      <div class="form-group">
+        <label>标签（逗号分隔）</label>
+        <input id="upload-tags" type="text" placeholder="视频, 课程, 习题" />
+      </div>
+      <div class="form-group">
+        <label>来源平台</label>
+        <input id="upload-platform" type="text" placeholder="例如：B站 / 知乎" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="cancel-upload">取消</button>
+        <button class="btn primary" id="save-upload">保存</button>
       </div>
     </div>
   </div>
