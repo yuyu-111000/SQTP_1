@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拾光伴学 - 资源导航</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding-bottom: 50px;
+        }
+        
+        .navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: #667eea !important;
+            font-size: 1.8rem;
+            letter-spacing: -0.5px;
+        }
+        
+        .nav-link {
+            color: #555 !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #667eea !important;
+            transform: translateY(-2px);
+        }
+        
+        .container {
+            max-width: 1200px;
+        }
+        
+        h2 {
+            color: white;
+            font-weight: 700;
+            text-align: center;
+            margin: 40px 0 30px 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .resource-card {
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            overflow: hidden;
+            background: white;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .resource-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.15);
+        }
+        
+        .resource-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .resource-content {
+            padding: 25px;
+        }
+        
+        .resource-content p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .resource-content h5 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        
+        .link-item {
+            margin-bottom: 12px;
+        }
+        
+        .link-item .btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 8px 20px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .link-item .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+        }
+        
+        .discussion-btn {
+            margin-top: 20px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .discussion-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">拾光伴学</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">资源导航</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/study_room">在线自习室</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/upload">文件上传</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">📚 学习资源导航</h2>
+        
+        <!-- 资源板块 -->
+        {% for resource in resources %}
+            <div class="resource-card d-flex flex-column">
+                <div class="resource-header d-flex align-items-center gap-3 mb-3">
+                    {% if resource.category == '学习资料' %}
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="学习资料" style="width: 40px; height: 40px;">
+                    {% elif resource.category == '数学基础' %}
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135726.png" alt="数学基础" style="width: 40px; height: 40px;">
+                    {% elif resource.category == '编程学习' %}
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135736.png" alt="编程学习" style="width: 40px; height: 40px;">
+                    {% else %}
+                        <img src="https://cdn-icons-png.flaticon.com/512/3135/3135741.png" alt="其他资源" style="width: 40px; height: 40px;">
+                    {% endif %}
+                    <h3 class="mb-0">{{ resource.name }}</h3>
+                </div>
+                <div class="resource-content">
+                    <p>{{ resource.description }}</p>
+                    <h5>相关链接：</h5>
+                    <div class="link-list">
+                        {% for link in resource.links %}
+                            <div class="link-item">
+                                <a href="{{ link.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <span class="link-icon">🔗</span> {{ link.title }}
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <a href="/discussion/{{ resource.id }}" class="btn btn-success btn-sm discussion-btn">
+                        💬 进入讨论区
+                    </a>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
