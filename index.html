@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZJU 学生导航</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Han+Serif+SC:wght@600&family=Source+Han+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <div class="brand-mark">Z</div>
+      <div>
+        <h1>ZJU 学生导航</h1>
+        <p>一站式学习资料与校园入口</p>
+      </div>
+    </div>
+    <div class="header-search">
+      <input id="search-input" type="search" placeholder="搜索学科资料或常用网站..." />
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="nav-section">
+        <h2>学科资源</h2>
+        <ul id="resource-categories" class="nav-list"></ul>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div class="content-header">
+        <h2 id="resource-title">学科资源</h2>
+        <div class="chip" id="resource-subtitle">按学科分类的资料入口</div>
+        <div class="content-actions">
+          <label class="sort-label" for="sort-select">排序</label>
+          <select id="sort-select">
+            <option value="hot" selected>热度优先</option>
+            <option value="new">最新优先</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="resource-container" class="card-grid"></div>
+    </section>
+
+  </main>
+
+  <aside class="study-room floating" id="study-room">
+    <button class="room-toggle" id="room-toggle">&gt;</button>
+    <div class="room-header">
+      <h2>在线自习室</h2>
+      <div class="online"><span class="dot"></span><span id="online-count">0</span> 人在线</div>
+    </div>
+
+    <div class="pomodoro">
+      <div class="pomodoro-label" id="pomodoro-mode">专注中</div>
+      <div class="time-wrap" id="time-wrap">
+        <button class="pomodoro-time" id="pomodoro-time" type="button">00:25:00</button>
+        <div class="time-picker" id="time-picker">
+          <select id="time-hours" size="5"></select>
+          <span>:</span>
+          <select id="time-minutes" size="5"></select>
+          <span>:</span>
+          <select id="time-seconds" size="5"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="room-actions">
+      <button class="btn primary" id="pomodoro-toggle">开始</button>
+    </div>
+
+    <div class="room-tip">
+      <label>给自己的一句话</label>
+      <input id="room-quote" type="text" placeholder="保持节奏，别急。" />
+    </div>
+  </aside>
+
+  <section class="sites-section">
+    <div class="content-header">
+      <div>
+        <h2>常用网站</h2>
+        <div class="chip">快捷访问网站主页</div>
+      </div>
+      <div class="section-actions">
+        <input id="section-name" type="text" placeholder="新建分区名称" />
+        <button class="btn ghost" id="add-section">新建分区</button>
+        <button class="btn primary" id="open-add-site">+ 添加网站</button>
+      </div>
+    </div>
+    <div id="site-container" class="site-sections"></div>
+  </section>
+
+  <div class="modal" id="add-site-modal">
+    <div class="modal-card">
+      <h3>添加个人常用网站</h3>
+      <div class="form-group">
+        <label>网站名称</label>
+        <input id="site-title" type="text" placeholder="例如：浙大教务网" />
+      </div>
+      <div class="form-group">
+        <label>主页链接</label>
+        <input id="site-url" type="url" placeholder="https://" />
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <input id="site-desc" type="text" placeholder="可选" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="cancel-add-site">取消</button>
+        <button class="btn primary" id="save-add-site">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="comments-modal">
+    <div class="modal-card wide">
+      <h3 id="comments-title">评论区</h3>
+      <div class="comments-list" id="comments-list"></div>
+      <div class="comment-input">
+        <input id="comment-user" type="text" placeholder="昵称（可留空）" />
+        <textarea id="comment-content" rows="3" placeholder="写下你的看法..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="cancel-comment">关闭</button>
+        <button class="btn primary" id="submit-comment">发布评论</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

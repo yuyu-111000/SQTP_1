@@ -1,0 +1,113 @@
+{
+  "studyResourceCategories": [
+    {
+      "id": "cs_base",
+      "name": "计算机基础",
+      "icon": "💻",
+      "resources": [
+        {
+          "id": 101,
+          "title": "翁恺 C 语言程序设计",
+          "url": "https://www.bilibili.com/video/BV19W411B7w1",
+          "description": "浙大计算机入门必看，永远的神",
+          "type": "video",
+          "source": "bilibili",
+          "tags": ["视频", "B站"],
+          "comments": [
+            {
+              "id": "c101_1",
+              "user": "迷途小鲜肉",
+              "content": "听懂了，谢谢翁老师！",
+              "time": "2023-09-10",
+              "likes": 3
+            }
+          ]
+        },
+        {
+          "id": 102,
+          "title": "Python 学习路线图 (知乎)",
+          "url": "https://zhuanlan.zhihu.com/p/example",
+          "description": "详细的 SQL 和 Python 入门到进阶指南",
+          "type": "post",
+          "source": "zhihu",
+          "tags": ["文章", "知乎"],
+          "comments": []
+        }
+      ]
+    },
+    {
+      "id": "math_public",
+      "name": "公共数学",
+      "icon": "📐",
+      "resources": [
+        {
+          "id": 201,
+          "title": "微积分历年卷 (百度网盘)",
+          "url": "https://pan.baidu.com/s/example",
+          "description": "提取码: zju1，包含近5年真题",
+          "type": "file",
+          "source": "baidu-pan",
+          "tags": ["资源", "网盘"],
+          "comments": []
+        },
+        {
+          "id": 202,
+          "title": "宋浩老师高数合集",
+          "url": "https://www.bilibili.com/video/BV1Eb411u7Fw",
+          "description": "哪里不会点哪里，基础救星",
+          "type": "video",
+          "source": "bilibili",
+          "tags": ["视频", "B站"],
+          "comments": []
+        }
+      ]
+    }
+  ],
+  "sites": [
+    {
+      "id": 901,
+      "title": "浙江大学官网",
+      "url": "https://www.zju.edu.cn/",
+      "description": "校园门户网站",
+      "iconUrl": ""
+    },
+    {
+      "id": 902,
+      "title": "CC98论坛",
+      "url": "https://www.cc98.org/",
+      "description": "浙大校内最活跃的论坛",
+      "iconUrl": ""
+    },
+    {
+      "id": 903,
+      "title": "GitHub",
+      "url": "https://github.com/",
+      "description": "代码托管平台",
+      "iconUrl": ""
+    },
+    {
+      "id": 904,
+      "title": "Bilibili",
+      "url": "https://www.bilibili.com/",
+      "description": "视频学习平台",
+      "iconUrl": ""
+    }
+  ],
+  "userCustomSites": [],
+  "studyRoom": {
+    "pomodoroConfig": {
+      "workDuration": 25,
+      "breakDuration": 5,
+      "unit": "minutes"
+    },
+    "onlineStats": {
+      "currentUsers": 0,
+      "peakToday": 12,
+      "note": "这个数字会在前端被随机生成替换，模拟实时在线人数"
+    }
+  },
+  "futureShared": {
+    "enabled": false,
+    "note": "学习资料的用户投稿未来将同步到后端，实现全员可见"
+  }
+}
