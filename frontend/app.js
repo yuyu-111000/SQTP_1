@@ -1,5 +1,5 @@
 const dataUrl = "./data/data.json";
-const API_BASE = "http://localhost:8000";
+const API_BASE = "/api";
 
 const state = {
   activeResourceCategory: null,
