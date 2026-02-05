@@ -12,7 +12,7 @@ pip install fastapi uvicorn sqlmodel requests
 python -m backend.app.seed
 ```
  4. 启动服务
- 后端：运行在 8000 端口。
+后端：运行在 8000 端口。
 
 ```Bash
 uvicorn backend.app.main:app --reload
