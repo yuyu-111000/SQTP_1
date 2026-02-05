@@ -99,6 +99,13 @@ body {
   gap: 24px;
   padding: 24px 48px 0;
   width: 100%;
+  height: clamp(240px, 34vh, 360px);
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.top-row > * {
+  min-height: 0;
 }
 
 .sidebar,
@@ -119,12 +126,19 @@ body {
 }
 
 .content {
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar,
 .later-card {
   overflow: hidden;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
 }
 
 
@@ -135,10 +149,30 @@ body {
   letter-spacing: 0.04em;
 }
 
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+}
+
 .nav-list {
   list-style: none;
   padding: 0;
-  margin: 0 0 16px;
+  margin: 0;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.nav-actions {
+  display: flex;
+  justify-content: stretch;
+  margin-top: auto;
+}
+
+.nav-actions .btn {
+  width: 100%;
 }
 
 .nav-item {
@@ -223,6 +257,9 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .section-divider {
@@ -521,6 +558,11 @@ body {
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .todo-card {
@@ -531,25 +573,32 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .todo-input {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .todo-input input {
-  flex: 1;
-  padding: 8px 10px;
+  width: 160px;
+  padding: 6px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .todo-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .todo-item {
@@ -602,6 +651,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .section-block {
@@ -636,12 +688,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  height: 100%;
+  min-height: 0;
 }
 
 .later-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
 }
 
 .later-item {

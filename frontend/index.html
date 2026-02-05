@@ -44,10 +44,10 @@
           <h2>待办</h2>
           <div class="chip">今天的任务</div>
         </div>
-      </div>
-      <div class="todo-input">
-        <input id="todo-input" type="text" placeholder="添加一个待办..." />
-        <button class="btn primary" id="add-todo">添加</button>
+        <div class="todo-input">
+          <input id="todo-input" type="text" placeholder="添加一个待办..." />
+          <button class="btn primary" id="add-todo">添加</button>
+        </div>
       </div>
       <div class="todo-list" id="todo-list"></div>
     </section>
@@ -58,6 +58,9 @@
       <section class="nav-section">
         <h2>学科资源</h2>
         <ul id="resource-categories" class="nav-list"></ul>
+        <div class="nav-actions">
+          <button class="btn ghost" id="open-apply">申请添加</button>
+        </div>
       </section>
     </aside>
 
@@ -69,7 +72,6 @@
         </div>
         <div class="content-actions">
           <button class="btn ghost" id="open-upload">上传内容</button>
-          <button class="btn ghost" id="open-apply">申请添加</button>
           <div class="sort-group">
             <label class="sort-label" for="sort-select">排序</label>
             <select id="sort-select">

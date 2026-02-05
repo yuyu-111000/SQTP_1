@@ -1,9 +1,15 @@
 const dataUrl = "./data/data.json";
+const API_BASE = "http://localhost:8000";
 
 const state = {
   activeResourceCategory: null,
   resourceData: [],
+  resourceCache: {},
+  commentCache: {},
   sites: [],
+  siteSections: [],
+  todos: [],
+  laterItems: [],
   selectedResource: null,
   isDraggingSite: false,
   pomodoro: {
@@ -14,6 +20,14 @@ const state = {
     timer: null
   }
 };
+
+async function fetchJson(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    throw new Error(`Request failed: ${res.status}`);
+  }
+  return res.json();
+}
 
 const els = {
   resourceCategories: document.getElementById("resource-categories"),
@@ -147,19 +161,30 @@ const storage = {
 };
 
 async function loadData() {
-  const res = await fetch(dataUrl);
-  const data = await res.json();
-  state.resourceData = data.studyResourceCategories || [];
-  state.sites = data.sites || [];
-  state.pomodoro.workSeconds = (data.studyRoom?.pomodoroConfig?.workDuration || 25) * 60;
+  let localData = {};
+  try {
+    localData = await fetchJson(dataUrl);
+  } catch (error) {
+    localData = {};
+  }
+
+  try {
+    const subjects = await fetchJson(`${API_BASE}/subjects`);
+    state.resourceData = subjects.length ? subjects : (localData.studyResourceCategories || []);
+  } catch (error) {
+    state.resourceData = localData.studyResourceCategories || [];
+  }
+
+  await fetchSiteData(localData.sites || []);
+  state.pomodoro.workSeconds = (localData.studyRoom?.pomodoroConfig?.workDuration || 25) * 60;
   state.pomodoro.remaining = state.pomodoro.workSeconds;
   initTimePicker();
   els.roomQuote.value = storage.getRoomQuote();
   updatePomodoroView();
   initCategories();
   initOnlineCount();
-  renderTodos();
-  renderLaterList();
+  await loadTodos();
+  await loadLaterItems();
 }
 
 function initCategories() {
@@ -194,28 +219,39 @@ function updateActiveNav() {
   });
 }
 
-function renderResources() {
+async function renderResources() {
   const category = state.resourceData.find((c) => c.id === state.activeResourceCategory);
   els.resourceTitle.textContent = category?.name || "学科资源";
   els.resourceSubtitle.textContent = "按学科分类的资料入口";
   els.resourceContainer.innerHTML = "";
+  if (!category) return;
+  if (!state.resourceCache[category.id]) {
+    els.resourceContainer.innerHTML = "<div class=\"comment-item\">加载中...</div>";
+    try {
+      const resources = await fetchJson(`${API_BASE}/subjects/${category.id}/resources`);
+      state.resourceCache[category.id] = resources.length ? resources : (category.resources || []);
+    } catch (error) {
+      state.resourceCache[category.id] = category.resources || [];
+    }
+  }
   const uploads = getUploadsForCategory(category?.id);
-  const resources = applyResourceFilters([...(uploads || []), ...(category?.resources || [])]);
+  const resources = applyResourceFilters([...(uploads || []), ...(state.resourceCache[category.id] || [])]);
   resources.forEach((item) => {
-    els.resourceContainer.appendChild(createResourceCard(item));
+    const card = createResourceCard(item);
+    els.resourceContainer.appendChild(card);
+    loadCommentPreview(item.id, card.querySelector(".comment-preview"));
   });
 }
 
 function renderSites() {
   els.siteContainer.innerHTML = "";
-  const sites = [...state.sites, ...storage.getCustomSites()];
+  const sites = [...state.sites];
   const keyword = els.searchInput.value.trim();
   const filtered = keyword
     ? sites.filter((item) => item.title.includes(keyword) || (item.description || "").includes(keyword))
     : sites;
 
-  const sections = storage.getSiteSections();
-  const assignments = storage.getSiteAssignments();
+  const sections = state.siteSections.length ? state.siteSections : [{ id: "default", name: "默认分区" }];
 
   sections.forEach((section) => {
     const block = document.createElement("div");
@@ -233,35 +269,35 @@ function renderSites() {
     const grid = block.querySelector(".site-grid");
     setupDropZone(grid, section.id);
 
-    const list = filtered.filter((site) => (assignments[site.id] || "default") === section.id);
+    const list = filtered.filter((site) => (site.section_id || "default") === section.id);
     list.forEach((site) => grid.appendChild(createSiteCard(site)));
 
     const actions = block.querySelector(".section-actions-inline");
-    actions.addEventListener("click", (event) => {
+    actions.addEventListener("click", async (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const action = target.dataset.action;
       const id = target.dataset.id;
       if (!action || !id) return;
-      if (action === "rename") renameSection(id);
-      if (action === "delete") deleteSection(id);
+      if (action === "rename") await renameSection(id);
+      if (action === "delete") await deleteSection(id);
     });
 
     els.siteContainer.appendChild(block);
   });
 }
 
-function renderTodos() {
-  const list = storage.getTodos();
+function renderTodos(list) {
+  const items = list || [];
   els.todoList.innerHTML = "";
-  if (!list.length) {
+  if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "todo-empty";
     empty.textContent = "暂无待办，先添加一个目标吧。";
     els.todoList.appendChild(empty);
     return;
   }
-  list.forEach((todo) => {
+  items.forEach((todo) => {
     els.todoList.appendChild(createTodoItem(todo));
   });
 }
@@ -276,7 +312,7 @@ function createTodoItem(todo) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = Boolean(todo.done);
-  checkbox.addEventListener("change", () => toggleTodo(todo.id));
+  checkbox.addEventListener("change", () => toggleTodo(todo.id, checkbox.checked));
 
   const text = document.createElement("span");
   text.className = "todo-text";
@@ -295,73 +331,142 @@ function createTodoItem(todo) {
   return item;
 }
 
-function addTodo() {
+async function addTodo() {
   const text = els.todoInput.value.trim();
   if (!text) return;
-  const list = storage.getTodos();
-  list.unshift({
-    id: `todo_${Date.now()}`,
-    text,
-    done: false
-  });
-  storage.setTodos(list);
+  try {
+    const created = await fetchJson(`${API_BASE}/todos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, done: false })
+    });
+    state.todos = [created, ...state.todos];
+  } catch (error) {
+    const list = storage.getTodos();
+    list.unshift({
+      id: `todo_${Date.now()}`,
+      text,
+      done: false
+    });
+    storage.setTodos(list);
+    state.todos = list;
+  }
   els.todoInput.value = "";
-  renderTodos();
+  renderTodos(state.todos);
 }
 
-function toggleTodo(todoId) {
-  const list = storage.getTodos();
-  const target = list.find((todo) => todo.id === todoId);
-  if (!target) return;
-  target.done = !target.done;
-  storage.setTodos(list);
-  renderTodos();
+async function toggleTodo(todoId, nextDone) {
+  try {
+    const updated = await fetchJson(`${API_BASE}/todos/${todoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ done: nextDone })
+    });
+    state.todos = state.todos.map((todo) => (todo.id === todoId ? updated : todo));
+    renderTodos(state.todos);
+    return;
+  } catch (error) {
+    const list = storage.getTodos();
+    const target = list.find((todo) => todo.id === todoId);
+    if (!target) return;
+    target.done = nextDone;
+    storage.setTodos(list);
+    state.todos = list;
+    renderTodos(state.todos);
+  }
 }
 
-function deleteTodo(todoId) {
-  const list = storage.getTodos().filter((todo) => todo.id !== todoId);
-  storage.setTodos(list);
-  renderTodos();
+async function deleteTodo(todoId) {
+  try {
+    await fetchJson(`${API_BASE}/todos/${todoId}`, { method: "DELETE" });
+    state.todos = state.todos.filter((todo) => todo.id !== todoId);
+    renderTodos(state.todos);
+    return;
+  } catch (error) {
+    const list = storage.getTodos().filter((todo) => todo.id !== todoId);
+    storage.setTodos(list);
+    state.todos = list;
+    renderTodos(state.todos);
+  }
 }
 
-function renderLaterList() {
-  const list = storage.getLaterList();
+function renderLaterList(list) {
+  const items = list || [];
   els.laterList.innerHTML = "";
-  if (!list.length) {
+  if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "later-empty";
     empty.textContent = "暂无收藏，先挑一个内容吧。";
     els.laterList.appendChild(empty);
     return;
   }
-  list.forEach((item) => {
+  items.forEach((item) => {
     const row = document.createElement("div");
     row.className = "later-item";
     row.innerHTML = `
       <span>${item.title}</span>
-      <button class="btn ghost btn-xs" data-id="${item.id}">移除</button>
+      <button class="btn ghost btn-xs" data-id="${item.resource_id || item.id}">移除</button>
     `;
-    row.querySelector("button").addEventListener("click", () => removeFromLaterList(item.id));
+    row.querySelector("button").addEventListener("click", () => removeFromLaterList(item.resource_id || item.id));
     els.laterList.appendChild(row);
   });
 }
 
-function addToLaterList(item) {
-  const list = storage.getLaterList();
-  if (list.some((entry) => entry.id === item.id)) return;
-  list.unshift({
-    id: item.id,
-    title: item.title,
-    url: item.url || ""
-  });
-  storage.setLaterList(list);
-  renderLaterList();
+async function addToLaterList(item) {
+  if (state.laterItems.some((entry) => entry.resource_id === item.id || entry.id === item.id)) return;
+  try {
+    const created = await fetchJson(`${API_BASE}/later`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resource_id: item.id, title: item.title })
+    });
+    state.laterItems = [created, ...state.laterItems];
+    renderLaterList(state.laterItems);
+    return;
+  } catch (error) {
+    const list = storage.getLaterList();
+    if (list.some((entry) => entry.id === item.id)) return;
+    list.unshift({
+      id: item.id,
+      title: item.title,
+      url: item.url || ""
+    });
+    storage.setLaterList(list);
+    state.laterItems = list;
+    renderLaterList(state.laterItems);
+  }
 }
 
-function removeFromLaterList(itemId) {
-  const list = storage.getLaterList().filter((item) => item.id !== itemId);
-  storage.setLaterList(list);
-  renderLaterList();
+async function removeFromLaterList(itemId) {
+  try {
+    await fetchJson(`${API_BASE}/later/${itemId}`, { method: "DELETE" });
+    state.laterItems = state.laterItems.filter((item) => (item.resource_id || item.id) !== itemId);
+    renderLaterList(state.laterItems);
+    return;
+  } catch (error) {
+    const list = storage.getLaterList().filter((item) => item.id !== itemId);
+    storage.setLaterList(list);
+    state.laterItems = list;
+    renderLaterList(state.laterItems);
+  }
+}
+
+async function loadTodos() {
+  try {
+    state.todos = await fetchJson(`${API_BASE}/todos`);
+  } catch (error) {
+    state.todos = storage.getTodos();
+  }
+  renderTodos(state.todos);
+}
+
+async function loadLaterItems() {
+  try {
+    state.laterItems = await fetchJson(`${API_BASE}/later`);
+  } catch (error) {
+    state.laterItems = storage.getLaterList();
+  }
+  renderLaterList(state.laterItems);
 }
 
 function getUploadsForCategory(categoryId) {
@@ -430,8 +535,8 @@ function saveUpload() {
 function createResourceCard(item) {
   const card = document.createElement("div");
   card.className = "card";
-  const preview = getCommentPreview(item.id);
-  const likeCount = getResourceLikeCount(item.id);
+  const preview = "加载中...";
+  const likeCount = item.like_count ?? getResourceLikeCount(item.id);
   const tags = [...(item.tags || [])];
   if (item.platform && !tags.includes(item.platform)) tags.push(item.platform);
   card.innerHTML = `
@@ -502,11 +607,18 @@ function setupDropZone(zone, sectionId) {
     zone.classList.remove("dragover");
     const siteId = event.dataTransfer.getData("text/plain") || event.dataTransfer.getData("text/site-id");
     if (!siteId) return;
-    const assignments = storage.getSiteAssignments();
-    assignments[siteId] = sectionId;
-    storage.setSiteAssignments(assignments);
-    renderSites();
+    assignSite(siteId, sectionId);
   });
+}
+
+async function fetchSiteData(fallbackSites) {
+  try {
+    state.siteSections = await fetchJson(`${API_BASE}/sites/sections`);
+    state.sites = await fetchJson(`${API_BASE}/sites`);
+  } catch (error) {
+    state.siteSections = [];
+    state.sites = fallbackSites || [];
+  }
 }
 
 function applyResourceFilters(list) {
@@ -516,11 +628,17 @@ function applyResourceFilters(list) {
     : [...list];
   const sort = els.sortSelect.value;
   if (sort === "hot") {
-    result.sort((a, b) => getResourceHeat(b.id) - getResourceHeat(a.id));
+    result.sort((a, b) => getResourceHeatFromItem(b) - getResourceHeatFromItem(a));
   } else if (sort === "new") {
     result.sort((a, b) => getResourceCreatedAt(b) - getResourceCreatedAt(a));
   }
   return result;
+}
+
+function getResourceHeatFromItem(item) {
+  const likeCount = item.like_count ?? getResourceLikeCount(item.id);
+  const commentCount = item.comment_count ?? 0;
+  return likeCount + commentCount * 2;
 }
 
 function getResourceCreatedAt(item) {
@@ -542,27 +660,46 @@ function getResourceLikeCount(resourceId) {
   return likes[resourceId] || 0;
 }
 
-function addResourceLike(resourceId, button) {
-  const likes = storage.getResourceLikes();
-  likes[resourceId] = (likes[resourceId] || 0) + 1;
-  storage.setResourceLikes(likes);
-  button.textContent = `👍 ${likes[resourceId]}`;
+async function addResourceLike(resourceId, button) {
+  try {
+    const result = await fetchJson(`${API_BASE}/resources/${resourceId}/likes`, { method: "POST" });
+    button.textContent = `👍 ${result.likeCount}`;
+    return;
+  } catch (error) {
+    const likes = storage.getResourceLikes();
+    likes[resourceId] = (likes[resourceId] || 0) + 1;
+    storage.setResourceLikes(likes);
+    button.textContent = `👍 ${likes[resourceId]}`;
+  }
 }
 
-function getCommentPreview(resourceId) {
-  const resource = findResourceById(resourceId);
-  const baseComments = resource?.comments || [];
-  const localComments = storage.getComments()[resourceId] || [];
-  const all = [...baseComments, ...localComments];
-  if (!all.length) return "暂无评论";
-  const top = all[0];
-  return `评论：${top.user || "匿名"} · ${top.content || ""}`;
+async function fetchComments(resourceId) {
+  if (state.commentCache[resourceId]) return state.commentCache[resourceId];
+  try {
+    const data = await fetchJson(`${API_BASE}/resources/${resourceId}/comments`);
+    state.commentCache[resourceId] = data;
+  } catch (error) {
+    state.commentCache[resourceId] = [];
+  }
+  return state.commentCache[resourceId];
 }
 
-function openComments(item) {
+async function loadCommentPreview(resourceId, element) {
+  if (!element) return;
+  const list = await fetchComments(resourceId);
+  if (!list.length) {
+    element.textContent = "暂无评论";
+    return;
+  }
+  const top = list[0];
+  element.textContent = `评论：${top.user || "匿名"} · ${top.content || ""}`;
+}
+
+async function openComments(item) {
   state.selectedResource = item;
   els.commentsTitle.textContent = `评论区 - ${item.title}`;
-  renderComments(item.id);
+  const list = await fetchComments(item.id);
+  renderComments(list);
   els.commentsModal.classList.add("show");
 }
 
@@ -572,56 +709,31 @@ function closeComments() {
   els.commentContent.value = "";
 }
 
-function renderComments(resourceId) {
-  const localCommentsMap = storage.getComments();
-  const localComments = localCommentsMap[resourceId] || [];
-  const resource = findResourceById(resourceId);
-  const baseComments = resource?.comments || [];
-  const allComments = [...baseComments, ...localComments];
-
+function renderComments(comments) {
   els.commentsList.innerHTML = "";
-  if (!allComments.length) {
+  if (!comments.length) {
     els.commentsList.innerHTML = "<div class=\"comment-item\">暂无评论，做第一个留言的人吧！</div>";
     return;
   }
-  allComments.forEach((comment) => {
+  comments.forEach((comment) => {
     const div = document.createElement("div");
+    const time = comment.time || (comment.created_at ? new Date(comment.created_at * 1000).toISOString().slice(0, 10) : "");
     div.className = "comment-item";
     div.innerHTML = `
       <div class="comment-meta">
         <span>${comment.user || "匿名"}</span>
-        <span>${comment.time || ""}</span>
+        <span>${time}</span>
       </div>
       <div>${comment.content || ""}</div>
       <div class="comment-meta">
-        <span class="comment-like" data-id="${comment.id}">👍 ${comment.likes ?? 0}</span>
+        <span class="comment-like">👍 ${comment.likes ?? 0}</span>
       </div>
     `;
-    div.querySelector(".comment-like").addEventListener("click", () => addLike(resourceId, comment.id));
     els.commentsList.appendChild(div);
   });
 }
 
-function addLike(resourceId, commentId) {
-  const localCommentsMap = storage.getComments();
-  const localComments = localCommentsMap[resourceId] || [];
-  const target = localComments.find((c) => c.id === commentId);
-  if (target) {
-    target.likes = (target.likes || 0) + 1;
-    localCommentsMap[resourceId] = localComments;
-    storage.setComments(localCommentsMap);
-    renderComments(resourceId);
-    return;
-  }
-
-  const resource = findResourceById(resourceId);
-  const baseComments = resource?.comments || [];
-  const baseTarget = baseComments.find((c) => c.id === commentId);
-  if (baseTarget) {
-    baseTarget.likes = (baseTarget.likes || 0) + 1;
-    renderComments(resourceId);
-  }
-}
+function addLike() {}
 
 function findResourceById(resourceId) {
   for (const category of state.resourceData) {
@@ -636,34 +748,36 @@ function findResourceById(resourceId) {
   return null;
 }
 
-function submitComment() {
+async function submitComment() {
   if (!state.selectedResource) return;
   const content = els.commentContent.value.trim();
   if (!content) return;
 
   const user = els.commentUser.value.trim() || "匿名";
-  const newComment = {
-    id: `lc_${state.selectedResource.id}_${Date.now()}`,
-    user,
-    content,
-    time: new Date().toISOString().slice(0, 10),
-    likes: 0
-  };
-
-  const localCommentsMap = storage.getComments();
-  const list = localCommentsMap[state.selectedResource.id] || [];
-  list.push(newComment);
-  localCommentsMap[state.selectedResource.id] = list;
-  storage.setComments(localCommentsMap);
-
-  renderComments(state.selectedResource.id);
-  els.commentContent.value = "";
-  renderResources();
+  try {
+    const created = await fetchJson(`${API_BASE}/resources/${state.selectedResource.id}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user, content })
+    });
+    state.commentCache[state.selectedResource.id] = null;
+    const list = await fetchComments(state.selectedResource.id);
+    renderComments(list);
+    els.commentContent.value = "";
+    renderResources();
+  } catch (error) {
+    alert("评论提交失败，请稍后重试。");
+  }
 }
 
-function initOnlineCount() {
-  const count = Math.floor(Math.random() * 60) + 20;
-  els.onlineCount.textContent = count;
+async function initOnlineCount() {
+  try {
+    const data = await fetchJson(`${API_BASE}/study-room/online`);
+    els.onlineCount.textContent = data.currentUsers ?? 0;
+  } catch (error) {
+    const count = Math.floor(Math.random() * 60) + 20;
+    els.onlineCount.textContent = count;
+  }
 }
 
 function updatePomodoroView() {
@@ -756,6 +870,44 @@ function closeAddSiteModal() {
   els.siteDesc.value = "";
 }
 
+async function saveCustomSite() {
+  const title = els.siteTitle.value.trim();
+  const url = els.siteUrl.value.trim();
+  if (!title || !url) return;
+  const desc = els.siteDesc.value.trim();
+  const defaultSection = state.siteSections.find((section) => section.id === "default");
+  const sectionId = defaultSection ? defaultSection.id : "default";
+  try {
+    const created = await fetchJson(`${API_BASE}/sites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, url, description: desc, section_id: sectionId })
+    });
+    state.sites.push(created);
+  } catch (error) {
+    alert("保存网站失败，请稍后重试。");
+  }
+  closeAddSiteModal();
+  renderSites();
+}
+
+async function addSiteSection() {
+  const name = els.sectionName.value.trim();
+  if (!name) return;
+  try {
+    const created = await fetchJson(`${API_BASE}/sites/sections`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    state.siteSections.push(created);
+    els.sectionName.value = "";
+    renderSites();
+  } catch (error) {
+    alert("新建分区失败，请稍后重试。");
+  }
+}
+
 function handleRoomDragStart(event) {
   if (event.button !== 0) return;
   uiState.drag.active = true;
@@ -782,29 +934,48 @@ function handleRoomDragEnd() {
   uiState.drag.active = false;
   els.studyRoom.classList.remove("dragging");
 }
-function renameSection(sectionId) {
-  const sections = storage.getSiteSections();
-  const target = sections.find((s) => s.id === sectionId);
+async function renameSection(sectionId) {
+  const target = state.siteSections.find((s) => s.id === sectionId);
   if (!target) return;
   const nextName = prompt("新的分区名称：", target.name);
   if (!nextName) return;
-  target.name = nextName.trim() || target.name;
-  storage.setSiteSections(sections);
-  renderSites();
+  try {
+    const updated = await fetchJson(`${API_BASE}/sites/sections/${sectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: nextName.trim() || target.name })
+    });
+    target.name = updated.name;
+    renderSites();
+  } catch (error) {
+    alert("重命名失败，请稍后重试。");
+  }
 }
 
-function deleteSection(sectionId) {
+async function deleteSection(sectionId) {
   if (!confirm("确定删除该分区？其中网站将回到默认分区。")) return;
-  const sections = storage.getSiteSections().filter((s) => s.id !== sectionId);
-  const assignments = storage.getSiteAssignments();
-  Object.keys(assignments).forEach((siteId) => {
-    if (assignments[siteId] === sectionId) {
-      assignments[siteId] = "default";
-    }
-  });
-  storage.setSiteSections(sections);
-  storage.setSiteAssignments(assignments);
-  renderSites();
+  try {
+    await fetchJson(`${API_BASE}/sites/sections/${sectionId}`, { method: "DELETE" });
+    state.siteSections = state.siteSections.filter((section) => section.id !== sectionId);
+    state.sites = state.sites.map((site) => (site.section_id === sectionId ? { ...site, section_id: "default" } : site));
+    renderSites();
+  } catch (error) {
+    alert("删除分区失败，请稍后重试。");
+  }
+}
+
+async function assignSite(siteId, sectionId) {
+  try {
+    const updated = await fetchJson(`${API_BASE}/sites/${siteId}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ section_id: sectionId })
+    });
+    state.sites = state.sites.map((site) => (site.id === siteId ? updated : site));
+    renderSites();
+  } catch (error) {
+    alert("移动网站失败，请稍后重试。");
+  }
 }
 
 function bindEvents() {
