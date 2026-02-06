@@ -1,4 +1,5 @@
 开发过程见docs/plans
+
 方案一：Docker 容器化部署 (推荐)
 无需配置 Python 环境，确保电脑已安装 Docker Desktop 即可。
 
