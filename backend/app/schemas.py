@@ -74,6 +74,10 @@ class SiteAssign(BaseModel):
     section_id: str
 
 
+class SiteUpdate(BaseModel):
+    title: Optional[str] = None
+
+
 class TodoCreate(BaseModel):
     text: str
     done: bool = False

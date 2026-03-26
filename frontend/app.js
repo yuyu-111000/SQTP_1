@@ -1,16 +1,15 @@
 const dataUrl = "./data/data.json";
 const API_BASE = "/api";
+const ONLINE_COUNT_POLL_INTERVAL = 30 * 1000;
 
 const state = {
   activeResourceCategory: null,
   resourceData: [],
   resourceCache: {},
-  commentCache: {},
   sites: [],
   siteSections: [],
   todos: [],
   laterItems: [],
-  selectedResource: null,
   isDraggingSite: false,
   pomodoro: {
     isRunning: false,
@@ -30,6 +29,9 @@ async function fetchJson(url, options) {
 }
 
 const els = {
+  brand: document.getElementById("brand-home"),
+  siteHeader: document.querySelector(".site-header"),
+  homeView: document.getElementById("home-view"),
   resourceCategories: document.getElementById("resource-categories"),
   resourceContainer: document.getElementById("resource-container"),
   siteContainer: document.getElementById("site-container"),
@@ -37,35 +39,29 @@ const els = {
   resourceSubtitle: document.getElementById("resource-subtitle"),
   onlineCount: document.getElementById("online-count"),
   searchInput: document.getElementById("search-input"),
-  sortSelect: document.getElementById("sort-select"),
   pomodoroTime: document.getElementById("pomodoro-time"),
   pomodoroMode: document.getElementById("pomodoro-mode"),
   pomodoroToggle: document.getElementById("pomodoro-toggle"),
+  studyControlPanel: document.getElementById("study-control-panel"),
   timePicker: document.getElementById("time-picker"),
-  timeWrap: document.getElementById("time-wrap"),
   timeHours: document.getElementById("time-hours"),
   timeMinutes: document.getElementById("time-minutes"),
   timeSeconds: document.getElementById("time-seconds"),
   addSiteModal: document.getElementById("add-site-modal"),
   openAddSite: document.getElementById("open-add-site"),
-  addSection: document.getElementById("add-section"),
-  sectionName: document.getElementById("section-name"),
   cancelAddSite: document.getElementById("cancel-add-site"),
   saveAddSite: document.getElementById("save-add-site"),
   siteTitle: document.getElementById("site-title"),
   siteUrl: document.getElementById("site-url"),
   siteDesc: document.getElementById("site-desc"),
-  studyRoom: document.getElementById("study-room"),
-  roomToggle: document.getElementById("room-toggle"),
+  resourceContent: document.getElementById("resource-content"),
+  headerQuickActions: document.getElementById("header-quick-actions"),
+  headerSitesIcon: document.getElementById("btn-sites"),
+  headerTodoIcon: document.getElementById("btn-todo"),
+  headerStudyIcon: document.getElementById("btn-study"),
   roomQuote: document.getElementById("room-quote"),
-  commentsModal: document.getElementById("comments-modal"),
-  commentsTitle: document.getElementById("comments-title"),
-  commentsList: document.getElementById("comments-list"),
-  cancelComment: document.getElementById("cancel-comment"),
-  submitComment: document.getElementById("submit-comment"),
-  commentUser: document.getElementById("comment-user"),
-  commentContent: document.getElementById("comment-content"),
-  openUpload: document.getElementById("open-upload"),
+  globalDrawer: document.getElementById("global-drawer"),
+  globalDrawerBackdrop: document.getElementById("global-drawer-backdrop"),
   openApply: document.getElementById("open-apply"),
   uploadModal: document.getElementById("upload-modal"),
   uploadModalTitle: document.getElementById("upload-modal-title"),
@@ -80,45 +76,32 @@ const els = {
   todoInput: document.getElementById("todo-input"),
   addTodo: document.getElementById("add-todo"),
   todoList: document.getElementById("todo-list"),
-  laterList: document.getElementById("later-list")
+  laterList: document.getElementById("later-list"),
+  pomodoroTimeDisplay: document.getElementById("pomodoro-time-display"),
+  toggleEditMode: document.getElementById("toggle-edit-mode")
 };
 
 const uiState = {
   uploadMode: "upload",
-  drag: {
-    active: false,
-    offsetX: 0,
-    offsetY: 0
-  }
+  activePanel: null,
+  editingSiteId: null
 };
 
+let onlineCountPollTimer = null;
+
 const storage = {
-  commentsKey: "resourceCommentsById",
   customSitesKey: "userCustomSites",
-  resourceLikesKey: "resourceLikesById",
   siteSectionsKey: "siteSections",
   siteAssignmentsKey: "siteAssignments",
   roomQuoteKey: "studyRoomQuote",
   todoKey: "todoItems",
   uploadKey: "resourceUploadsByCategory",
   laterKey: "laterStudyList",
-  getComments() {
-    return JSON.parse(localStorage.getItem(this.commentsKey) || "{}");
-  },
-  setComments(data) {
-    localStorage.setItem(this.commentsKey, JSON.stringify(data));
-  },
   getCustomSites() {
     return JSON.parse(localStorage.getItem(this.customSitesKey) || "[]");
   },
   setCustomSites(data) {
     localStorage.setItem(this.customSitesKey, JSON.stringify(data));
-  },
-  getResourceLikes() {
-    return JSON.parse(localStorage.getItem(this.resourceLikesKey) || "{}");
-  },
-  setResourceLikes(data) {
-    localStorage.setItem(this.resourceLikesKey, JSON.stringify(data));
   },
   getSiteSections() {
     const raw = localStorage.getItem(this.siteSectionsKey);
@@ -179,21 +162,114 @@ async function loadData() {
   state.pomodoro.workSeconds = (localData.studyRoom?.pomodoroConfig?.workDuration || 25) * 60;
   state.pomodoro.remaining = state.pomodoro.workSeconds;
   initTimePicker();
-  els.roomQuote.value = storage.getRoomQuote();
+  if (els.roomQuote) {
+    els.roomQuote.value = storage.getRoomQuote();
+  }
   updatePomodoroView();
-  initCategories();
-  initOnlineCount();
-  await loadTodos();
   await loadLaterItems();
+  initCategories();
+  startOnlineCountPolling({ immediate: true });
+  await loadTodos();
+}
+
+function syncHeaderPanelState() {
+  const panel = uiState.activePanel;
+  const isOpen = Boolean(panel);
+  els.headerSitesIcon?.classList.toggle("is-active", panel === "sites");
+  els.headerTodoIcon?.classList.toggle("is-active", panel === "todos");
+  els.headerStudyIcon?.classList.toggle("is-active", panel === "study");
+  els.headerSitesIcon?.setAttribute("aria-expanded", String(isOpen && panel === "sites"));
+  els.headerTodoIcon?.setAttribute("aria-expanded", String(isOpen && panel === "todos"));
+  els.headerStudyIcon?.setAttribute("aria-expanded", String(isOpen && panel === "study"));
+}
+
+function setGlobalPanel(panelName) {
+  const panels = els.globalDrawer?.querySelectorAll(".global-panel") || [];
+  panels.forEach((panel) => {
+    const isActive = panel.dataset.panel === panelName;
+    panel.classList.toggle("is-active", isActive);
+    panel.setAttribute("aria-hidden", String(!isActive));
+  });
+}
+
+function openGlobalDrawer(panelName) {
+  const drawer = document.getElementById("global-drawer");
+  if (!drawer || !panelName) return;
+  uiState.activePanel = panelName;
+  drawer.classList.toggle("is-open", true);
+  drawer.setAttribute("aria-hidden", "false");
+  els.globalDrawerBackdrop?.classList.toggle("is-open", true);
+  els.globalDrawerBackdrop?.setAttribute("aria-hidden", "false");
+  setGlobalPanel(panelName);
+  syncHeaderPanelState();
+}
+
+function closeGlobalDrawer() {
+  const drawer = document.getElementById("global-drawer");
+  if (!drawer) return;
+  uiState.activePanel = null;
+  drawer.classList.toggle("is-open", false);
+  drawer.setAttribute("aria-hidden", "true");
+  els.globalDrawerBackdrop?.classList.toggle("is-open", false);
+  els.globalDrawerBackdrop?.setAttribute("aria-hidden", "true");
+  setGlobalPanel("");
+  syncHeaderPanelState();
+}
+
+function toggleGlobalDrawer(panelName) {
+  const drawer = document.getElementById("global-drawer");
+  if (!drawer || !panelName) return;
+  const isSamePanel = uiState.activePanel === panelName;
+  const isOpen = drawer.classList.contains("is-open");
+  if (isOpen && isSamePanel) {
+    closeGlobalDrawer();
+    return;
+  }
+  openGlobalDrawer(panelName);
+}
+
+function closeAllFloatingPanels() {
+  closeGlobalDrawer();
 }
 
 function initCategories() {
   renderCategoryList(els.resourceCategories, state.resourceData);
-  if (state.resourceData.length) {
-    state.activeResourceCategory = state.resourceData[0].id;
-  }
-  renderResources();
+  state.activeResourceCategory = null;
+  updateActiveNav();
+  showHomeView();
   renderSites();
+}
+
+function syncDesktopLayoutMetrics() {
+  const headerHeight = els.siteHeader?.getBoundingClientRect().height;
+  if (!headerHeight) return;
+  document.documentElement.style.setProperty("--header-runtime-height", `${Math.round(headerHeight)}px`);
+}
+
+function setMainView(viewName) {
+  const showHome = viewName === "home";
+  els.homeView?.classList.toggle("hidden", !showHome);
+  els.resourceContent?.classList.toggle("hidden", showHome);
+}
+
+function showHomeView() {
+  setMainView("home");
+}
+
+function showResourceView() {
+  setMainView("resource");
+}
+
+function handleBrandHomeNavigation() {
+  state.activeResourceCategory = null;
+  updateActiveNav();
+  showHomeView();
+}
+
+function handleBrandKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  handleBrandHomeNavigation();
 }
 
 function renderCategoryList(container, list) {
@@ -204,8 +280,10 @@ function renderCategoryList(container, list) {
     li.textContent = item.name;
     li.addEventListener("click", () => {
       state.activeResourceCategory = item.id;
+      showResourceView();
       updateActiveNav();
       renderResources();
+      els.resourceContent?.scrollIntoView({ block: "start", behavior: "smooth" });
     });
     container.appendChild(li);
   });
@@ -222,11 +300,13 @@ function updateActiveNav() {
 async function renderResources() {
   const category = state.resourceData.find((c) => c.id === state.activeResourceCategory);
   els.resourceTitle.textContent = category?.name || "学科资源";
-  els.resourceSubtitle.textContent = "按学科分类的资料入口";
+  if (els.resourceSubtitle) {
+    els.resourceSubtitle.textContent = category?.name ? `当前分区：${category.name}` : "按学科分区浏览当前资源";
+  }
   els.resourceContainer.innerHTML = "";
   if (!category) return;
   if (!state.resourceCache[category.id]) {
-    els.resourceContainer.innerHTML = "<div class=\"comment-item\">加载中...</div>";
+    els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
     try {
       const resources = await fetchJson(`${API_BASE}/subjects/${category.id}/resources`);
       state.resourceCache[category.id] = resources.length ? resources : (category.resources || []);
@@ -239,8 +319,57 @@ async function renderResources() {
   resources.forEach((item) => {
     const card = createResourceCard(item);
     els.resourceContainer.appendChild(card);
-    loadCommentPreview(item.id, card.querySelector(".comment-preview"));
   });
+}
+
+function toggleEditMode(event) {
+  event?.stopPropagation();
+  const container = els.siteContainer;
+  if (!container) return;
+  const isEditMode = !container.classList.contains("is-editing");
+  container.classList.toggle("is-editing", isEditMode);
+  document.body.dataset.editMode = String(isEditMode);
+  uiState.editingSiteId = null;
+  els.toggleEditMode?.setAttribute("aria-pressed", String(isEditMode));
+  renderSites();
+}
+
+async function renameSiteTitle(siteId, nextTitle) {
+  const target = state.sites.find((site) => site.id === siteId);
+  if (!target) {
+    uiState.editingSiteId = null;
+    renderSites();
+    return false;
+  }
+  const title = nextTitle.trim();
+  if (!title) {
+    alert("网站名称不能为空。");
+    uiState.editingSiteId = null;
+    renderSites();
+    return false;
+  }
+  if (title === target.title) {
+    uiState.editingSiteId = null;
+    renderSites();
+    return true;
+  }
+
+  try {
+    const updated = await fetchJson(`${API_BASE}/sites/${siteId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title })
+    });
+    state.sites = state.sites.map((site) => (site.id === siteId ? updated : site));
+    uiState.editingSiteId = null;
+    renderSites();
+    return true;
+  } catch (error) {
+    alert("重命名失败，请稍后重试。");
+    uiState.editingSiteId = null;
+    renderSites();
+    return false;
+  }
 }
 
 function renderSites() {
@@ -251,39 +380,8 @@ function renderSites() {
     ? sites.filter((item) => item.title.includes(keyword) || (item.description || "").includes(keyword))
     : sites;
 
-  const sections = state.siteSections.length ? state.siteSections : [{ id: "default", name: "默认分区" }];
-
-  sections.forEach((section) => {
-    const block = document.createElement("div");
-    block.className = "section-block";
-    block.innerHTML = `
-      <div class="section-head">
-        <div class="section-title">${section.name}</div>
-        <div class="section-actions-inline">
-          <button class="btn ghost btn-xs" data-action="rename" data-id="${section.id}">重命名</button>
-          ${section.id === "default" ? "" : `<button class=\"btn ghost btn-xs\" data-action=\"delete\" data-id=\"${section.id}\">删除</button>`}
-        </div>
-      </div>
-      <div class="site-grid drop-zone" data-section="${section.id}"></div>
-    `;
-    const grid = block.querySelector(".site-grid");
-    setupDropZone(grid, section.id);
-
-    const list = filtered.filter((site) => (site.section_id || "default") === section.id);
-    list.forEach((site) => grid.appendChild(createSiteCard(site)));
-
-    const actions = block.querySelector(".section-actions-inline");
-    actions.addEventListener("click", async (event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const action = target.dataset.action;
-      const id = target.dataset.id;
-      if (!action || !id) return;
-      if (action === "rename") await renameSection(id);
-      if (action === "delete") await deleteSection(id);
-    });
-
-    els.siteContainer.appendChild(block);
+  filtered.forEach((site) => {
+    els.siteContainer.appendChild(createSiteCard(site));
   });
 }
 
@@ -396,7 +494,7 @@ function renderLaterList(list) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "later-empty";
-    empty.textContent = "暂无收藏，先挑一个内容吧。";
+    empty.textContent = "此处空空如也，试试点击资源卡片的「+」号～";
     els.laterList.appendChild(empty);
     return;
   }
@@ -412,8 +510,29 @@ function renderLaterList(list) {
   });
 }
 
+function isInLaterList(resourceId) {
+  return state.laterItems.some((entry) => entry.resource_id === resourceId || entry.id === resourceId);
+}
+
+function setLaterButtonState(button, isAdded) {
+  if (!button) return;
+  button.classList.toggle("is-added", isAdded);
+  button.textContent = isAdded ? "✔" : "+";
+  button.setAttribute("aria-label", isAdded ? "已加入稍后再学" : "加入稍后再学");
+  button.title = isAdded ? "已加入稍后再学" : "加入稍后再学";
+}
+
+function syncResourceCardLaterButton(resourceId, isAdded) {
+  if (!els.resourceContainer) return;
+  const button = els.resourceContainer.querySelector(`.card[data-resource-id="${resourceId}"] .add-later-btn`);
+  setLaterButtonState(button, isAdded);
+}
+
 async function addToLaterList(item) {
-  if (state.laterItems.some((entry) => entry.resource_id === item.id || entry.id === item.id)) return;
+  if (isInLaterList(item.id)) {
+    syncResourceCardLaterButton(item.id, true);
+    return true;
+  }
   try {
     const created = await fetchJson(`${API_BASE}/later`, {
       method: "POST",
@@ -422,10 +541,14 @@ async function addToLaterList(item) {
     });
     state.laterItems = [created, ...state.laterItems];
     renderLaterList(state.laterItems);
-    return;
+    syncResourceCardLaterButton(item.id, true);
+    return true;
   } catch (error) {
     const list = storage.getLaterList();
-    if (list.some((entry) => entry.id === item.id)) return;
+    if (list.some((entry) => entry.id === item.id)) {
+      syncResourceCardLaterButton(item.id, true);
+      return true;
+    }
     list.unshift({
       id: item.id,
       title: item.title,
@@ -434,6 +557,8 @@ async function addToLaterList(item) {
     storage.setLaterList(list);
     state.laterItems = list;
     renderLaterList(state.laterItems);
+    syncResourceCardLaterButton(item.id, true);
+    return true;
   }
 }
 
@@ -442,12 +567,15 @@ async function removeFromLaterList(itemId) {
     await fetchJson(`${API_BASE}/later/${itemId}`, { method: "DELETE" });
     state.laterItems = state.laterItems.filter((item) => (item.resource_id || item.id) !== itemId);
     renderLaterList(state.laterItems);
-    return;
+    syncResourceCardLaterButton(itemId, false);
+    return true;
   } catch (error) {
     const list = storage.getLaterList().filter((item) => item.id !== itemId);
     storage.setLaterList(list);
     state.laterItems = list;
     renderLaterList(state.laterItems);
+    syncResourceCardLaterButton(itemId, false);
+    return true;
   }
 }
 
@@ -535,35 +663,46 @@ function saveUpload() {
 function createResourceCard(item) {
   const card = document.createElement("div");
   card.className = "card";
-  const preview = "加载中...";
-  const likeCount = item.like_count ?? getResourceLikeCount(item.id);
+  card.dataset.resourceId = String(item.id);
   const tags = [...(item.tags || [])];
   if (item.platform && !tags.includes(item.platform)) tags.push(item.platform);
   card.innerHTML = `
-    <div class="card-title">
+    <div class="card-top">
       <h3>${item.title}</h3>
-      <button class="btn ghost btn-xs" data-action="later">稍后再学</button>
+      <button class="later-plus add-later-btn add-to-later-btn" type="button" data-action="later" aria-label="加入稍后再学" title="加入稍后再学">+</button>
     </div>
     <div class="tags">${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
-    <p>${item.description || ""}</p>
-    <div class="comment-preview">${preview}</div>
-    <div class="card-actions">
-      <button class="btn primary">打开</button>
-      <button class="btn ghost">评论</button>
-      <button class="btn ghost">👍 ${likeCount}</button>
-      <button class="btn ghost">举报</button>
-    </div>
+    <p class="card-desc">${item.description || ""}</p>
+    <button class="btn primary card-open open-resource-btn" type="button" aria-label="立即前往" title="立即前往" data-tooltip="立即前往">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   `;
-  const [openBtn, commentBtn, likeBtn, reportBtn] = card.querySelectorAll(".card-actions button");
+  const openBtn = card.querySelector(".card-open");
   const laterBtn = card.querySelector("[data-action='later']");
+  const inLaterList = isInLaterList(item.id);
+  setLaterButtonState(laterBtn, inLaterList);
   openBtn.addEventListener("click", () => window.open(item.url, "_blank"));
-  commentBtn.addEventListener("click", () => openComments(item));
-  likeBtn.addEventListener("click", () => addResourceLike(item.id, likeBtn));
-  reportBtn.addEventListener("click", () => {
-    alert("已收到举报，我们会尽快核查。谢谢反馈！");
+  laterBtn.addEventListener("click", async () => {
+    if (isInLaterList(item.id)) {
+      await removeFromLaterList(item.id);
+      return;
+    }
+    await addToLaterList(item);
   });
-  laterBtn.addEventListener("click", () => addToLaterList(item));
   return card;
+}
+
+async function deleteSiteById(siteId, title) {
+  if (!confirm(`确定删除「${title}」？`)) return;
+  try {
+    await fetchJson(`${API_BASE}/sites/${siteId}`, { method: "DELETE" });
+    state.sites = state.sites.filter((site) => site.id !== siteId);
+    renderSites();
+  } catch (error) {
+    alert("删除网站失败，请稍后重试。");
+  }
 }
 
 function createSiteCard(item) {
@@ -572,16 +711,70 @@ function createSiteCard(item) {
   card.setAttribute("draggable", "true");
   card.dataset.siteId = item.id;
   const initial = item.title?.[0] || "站";
-  card.innerHTML = `
-    <div class="site-head">
-      <div class="site-icon">${initial}</div>
-      <h3>${item.title}</h3>
-    </div>
-  `;
-  card.addEventListener("click", () => {
-    if (state.isDraggingSite) return;
+  const isEditMode = els.siteContainer?.classList.contains("is-editing") || false;
+
+  const head = document.createElement("div");
+  head.className = "site-head";
+  const icon = document.createElement("div");
+  icon.className = "site-icon";
+  icon.textContent = initial;
+  head.appendChild(icon);
+
+  if (isEditMode) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "site-rename-input";
+    input.value = item.title;
+    input.setAttribute("aria-label", "编辑网站名称");
+    let submitted = false;
+    const submitRename = async () => {
+      if (submitted) return;
+      submitted = true;
+      await renameSiteTitle(item.id, input.value);
+    };
+    input.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+    input.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        await submitRename();
+      }
+    });
+    input.addEventListener("blur", async () => {
+      await submitRename();
+    });
+    head.appendChild(input);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "site-delete-btn";
+    deleteBtn.setAttribute("aria-label", "删除");
+    deleteBtn.textContent = "×";
+    deleteBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await deleteSiteById(item.id, item.title);
+    });
+    head.appendChild(deleteBtn);
+  } else {
+    const title = document.createElement("h3");
+    title.className = "site-title";
+    title.textContent = item.title;
+    head.appendChild(title);
+  }
+  card.appendChild(head);
+
+  // 点击打开网站
+  card.addEventListener("click", (e) => {
+    if (els.siteContainer?.classList.contains("is-editing")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (state.isDraggingSite || (e.target instanceof Element && e.target.closest(".site-delete-btn"))) return;
     window.open(item.url, "_blank");
   });
+
+  // 拖拽处理
   card.addEventListener("dragstart", (event) => {
     state.isDraggingSite = true;
     event.dataTransfer.effectAllowed = "move";
@@ -626,17 +819,12 @@ function applyResourceFilters(list) {
   let result = keyword
     ? list.filter((item) => item.title.includes(keyword) || (item.description || "").includes(keyword))
     : [...list];
-  const sort = els.sortSelect.value;
-  if (sort === "hot") {
-    result.sort((a, b) => getResourceHeatFromItem(b) - getResourceHeatFromItem(a));
-  } else if (sort === "new") {
-    result.sort((a, b) => getResourceCreatedAt(b) - getResourceCreatedAt(a));
-  }
+  result.sort((a, b) => getResourceHeatFromItem(b) - getResourceHeatFromItem(a));
   return result;
 }
 
 function getResourceHeatFromItem(item) {
-  const likeCount = item.like_count ?? getResourceLikeCount(item.id);
+  const likeCount = item.like_count ?? 0;
   const commentCount = item.comment_count ?? 0;
   return likeCount + commentCount * 2;
 }
@@ -645,129 +833,6 @@ function getResourceCreatedAt(item) {
   if (typeof item.createdAt === "number") return item.createdAt;
   const numeric = Number(item.id);
   return Number.isNaN(numeric) ? 0 : numeric;
-}
-
-function getResourceHeat(resourceId) {
-  const resource = findResourceById(resourceId);
-  const baseComments = resource?.comments || [];
-  const localComments = storage.getComments()[resourceId] || [];
-  const commentCount = baseComments.length + localComments.length;
-  return getResourceLikeCount(resourceId) + commentCount * 2;
-}
-
-function getResourceLikeCount(resourceId) {
-  const likes = storage.getResourceLikes();
-  return likes[resourceId] || 0;
-}
-
-async function addResourceLike(resourceId, button) {
-  try {
-    const result = await fetchJson(`${API_BASE}/resources/${resourceId}/likes`, { method: "POST" });
-    button.textContent = `👍 ${result.likeCount}`;
-    return;
-  } catch (error) {
-    const likes = storage.getResourceLikes();
-    likes[resourceId] = (likes[resourceId] || 0) + 1;
-    storage.setResourceLikes(likes);
-    button.textContent = `👍 ${likes[resourceId]}`;
-  }
-}
-
-async function fetchComments(resourceId) {
-  if (state.commentCache[resourceId]) return state.commentCache[resourceId];
-  try {
-    const data = await fetchJson(`${API_BASE}/resources/${resourceId}/comments`);
-    state.commentCache[resourceId] = data;
-  } catch (error) {
-    state.commentCache[resourceId] = [];
-  }
-  return state.commentCache[resourceId];
-}
-
-async function loadCommentPreview(resourceId, element) {
-  if (!element) return;
-  const list = await fetchComments(resourceId);
-  if (!list.length) {
-    element.textContent = "暂无评论";
-    return;
-  }
-  const top = list[0];
-  element.textContent = `评论：${top.user || "匿名"} · ${top.content || ""}`;
-}
-
-async function openComments(item) {
-  state.selectedResource = item;
-  els.commentsTitle.textContent = `评论区 - ${item.title}`;
-  const list = await fetchComments(item.id);
-  renderComments(list);
-  els.commentsModal.classList.add("show");
-}
-
-function closeComments() {
-  els.commentsModal.classList.remove("show");
-  els.commentUser.value = "";
-  els.commentContent.value = "";
-}
-
-function renderComments(comments) {
-  els.commentsList.innerHTML = "";
-  if (!comments.length) {
-    els.commentsList.innerHTML = "<div class=\"comment-item\">暂无评论，做第一个留言的人吧！</div>";
-    return;
-  }
-  comments.forEach((comment) => {
-    const div = document.createElement("div");
-    const time = comment.time || (comment.created_at ? new Date(comment.created_at * 1000).toISOString().slice(0, 10) : "");
-    div.className = "comment-item";
-    div.innerHTML = `
-      <div class="comment-meta">
-        <span>${comment.user || "匿名"}</span>
-        <span>${time}</span>
-      </div>
-      <div>${comment.content || ""}</div>
-      <div class="comment-meta">
-        <span class="comment-like">👍 ${comment.likes ?? 0}</span>
-      </div>
-    `;
-    els.commentsList.appendChild(div);
-  });
-}
-
-function addLike() {}
-
-function findResourceById(resourceId) {
-  for (const category of state.resourceData) {
-    const found = category.resources?.find((item) => item.id === resourceId);
-    if (found) return found;
-  }
-  const uploads = storage.getUploads();
-  for (const list of Object.values(uploads)) {
-    const found = list.find((item) => item.id === resourceId);
-    if (found) return found;
-  }
-  return null;
-}
-
-async function submitComment() {
-  if (!state.selectedResource) return;
-  const content = els.commentContent.value.trim();
-  if (!content) return;
-
-  const user = els.commentUser.value.trim() || "匿名";
-  try {
-    const created = await fetchJson(`${API_BASE}/resources/${state.selectedResource.id}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user, content })
-    });
-    state.commentCache[state.selectedResource.id] = null;
-    const list = await fetchComments(state.selectedResource.id);
-    renderComments(list);
-    els.commentContent.value = "";
-    renderResources();
-  } catch (error) {
-    alert("评论提交失败，请稍后重试。");
-  }
 }
 
 async function initOnlineCount() {
@@ -780,29 +845,82 @@ async function initOnlineCount() {
   }
 }
 
+function stopOnlineCountPolling() {
+  if (!onlineCountPollTimer) return;
+  clearInterval(onlineCountPollTimer);
+  onlineCountPollTimer = null;
+}
+
+function startOnlineCountPolling({ immediate = false } = {}) {
+  stopOnlineCountPolling();
+  if (immediate && !document.hidden) {
+    initOnlineCount();
+  }
+  if (document.hidden) return;
+  onlineCountPollTimer = setInterval(() => {
+    initOnlineCount();
+  }, ONLINE_COUNT_POLL_INTERVAL);
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    stopOnlineCountPolling();
+    return;
+  }
+  startOnlineCountPolling({ immediate: true });
+}
+
+function setPomodoroToggleIcon(isRunning) {
+  if (!els.pomodoroToggle) return;
+  if (isRunning) {
+    els.pomodoroToggle.setAttribute("aria-label", "暂停");
+    els.pomodoroToggle.removeAttribute("title");
+    els.pomodoroToggle.removeAttribute("data-tooltip");
+    els.pomodoroToggle.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" fill="currentColor"/>
+      </svg>
+    `;
+    return;
+  }
+  els.pomodoroToggle.setAttribute("aria-label", "开始");
+  els.pomodoroToggle.removeAttribute("title");
+  els.pomodoroToggle.removeAttribute("data-tooltip");
+  els.pomodoroToggle.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5.5v13l10-6.5-10-6.5Z" fill="currentColor"/>
+    </svg>
+  `;
+}
+
 function updatePomodoroView() {
   const hours = Math.floor(state.pomodoro.remaining / 3600);
   const minutes = Math.floor((state.pomodoro.remaining % 3600) / 60);
   const seconds = state.pomodoro.remaining % 60;
-  els.pomodoroTime.textContent = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  els.pomodoroTime.textContent = timeStr;
+  if (els.pomodoroTimeDisplay) {
+    els.pomodoroTimeDisplay.textContent = timeStr;
+  }
   els.pomodoroMode.textContent = "专注中";
+  setPomodoroToggleIcon(state.pomodoro.isRunning);
 }
 
 function togglePomodoro() {
   if (state.pomodoro.isRunning) {
     clearInterval(state.pomodoro.timer);
     state.pomodoro.isRunning = false;
-    els.pomodoroToggle.textContent = "开始";
+    setPomodoroToggleIcon(false);
     return;
   }
   state.pomodoro.isRunning = true;
-  els.pomodoroToggle.textContent = "暂停";
+  setPomodoroToggleIcon(true);
   state.pomodoro.timer = setInterval(() => {
     if (state.pomodoro.remaining <= 0) {
       clearInterval(state.pomodoro.timer);
       state.pomodoro.isRunning = false;
       state.pomodoro.remaining = 0;
-      els.pomodoroToggle.textContent = "开始";
+      setPomodoroToggleIcon(false);
       updatePomodoroView();
       return;
     }
@@ -849,7 +967,7 @@ function applyTimePicker() {
   if (state.pomodoro.isRunning) {
     clearInterval(state.pomodoro.timer);
     state.pomodoro.isRunning = false;
-    els.pomodoroToggle.textContent = "开始";
+    setPomodoroToggleIcon(false);
   }
   updatePomodoroView();
 }
@@ -885,83 +1003,21 @@ async function saveCustomSite() {
     });
     state.sites.push(created);
   } catch (error) {
-    alert("保存网站失败，请稍后重试。");
+    // localStorage 敦网离线模式下保存到 localStorage
+    const customSites = storage.getCustomSites();
+    const newSite = {
+      id: "local-" + Date.now(),
+      title,
+      url,
+      description: desc,
+      section_id: sectionId
+    };
+    customSites.push(newSite);
+    storage.setCustomSites(customSites);
+    state.sites.push(newSite);
   }
   closeAddSiteModal();
   renderSites();
-}
-
-async function addSiteSection() {
-  const name = els.sectionName.value.trim();
-  if (!name) return;
-  try {
-    const created = await fetchJson(`${API_BASE}/sites/sections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
-    });
-    state.siteSections.push(created);
-    els.sectionName.value = "";
-    renderSites();
-  } catch (error) {
-    alert("新建分区失败，请稍后重试。");
-  }
-}
-
-function handleRoomDragStart(event) {
-  if (event.button !== 0) return;
-  uiState.drag.active = true;
-  const rect = els.studyRoom.getBoundingClientRect();
-  uiState.drag.offsetX = event.clientX - rect.left;
-  uiState.drag.offsetY = event.clientY - rect.top;
-  els.studyRoom.classList.add("dragging");
-  els.studyRoom.style.right = "auto";
-  event.preventDefault();
-}
-
-function handleRoomDragMove(event) {
-  if (!uiState.drag.active) return;
-  const maxLeft = window.innerWidth - els.studyRoom.offsetWidth;
-  const maxTop = window.innerHeight - els.studyRoom.offsetHeight;
-  const nextLeft = Math.min(Math.max(0, event.clientX - uiState.drag.offsetX), maxLeft);
-  const nextTop = Math.min(Math.max(0, event.clientY - uiState.drag.offsetY), maxTop);
-  els.studyRoom.style.left = `${nextLeft}px`;
-  els.studyRoom.style.top = `${nextTop}px`;
-}
-
-function handleRoomDragEnd() {
-  if (!uiState.drag.active) return;
-  uiState.drag.active = false;
-  els.studyRoom.classList.remove("dragging");
-}
-async function renameSection(sectionId) {
-  const target = state.siteSections.find((s) => s.id === sectionId);
-  if (!target) return;
-  const nextName = prompt("新的分区名称：", target.name);
-  if (!nextName) return;
-  try {
-    const updated = await fetchJson(`${API_BASE}/sites/sections/${sectionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: nextName.trim() || target.name })
-    });
-    target.name = updated.name;
-    renderSites();
-  } catch (error) {
-    alert("重命名失败，请稍后重试。");
-  }
-}
-
-async function deleteSection(sectionId) {
-  if (!confirm("确定删除该分区？其中网站将回到默认分区。")) return;
-  try {
-    await fetchJson(`${API_BASE}/sites/sections/${sectionId}`, { method: "DELETE" });
-    state.siteSections = state.siteSections.filter((section) => section.id !== sectionId);
-    state.sites = state.sites.map((site) => (site.section_id === sectionId ? { ...site, section_id: "default" } : site));
-    renderSites();
-  } catch (error) {
-    alert("删除分区失败，请稍后重试。");
-  }
 }
 
 async function assignSite(siteId, sectionId) {
@@ -979,51 +1035,89 @@ async function assignSite(siteId, sectionId) {
 }
 
 function bindEvents() {
-  els.openAddSite.addEventListener("click", openAddSiteModal);
-  els.addSection.addEventListener("click", addSiteSection);
+  const drawer = document.getElementById("global-drawer");
+  if (!drawer) {
+    console.error("global-drawer element not found");
+    return;
+  }
+  els.openAddSite.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openAddSiteModal();
+  });
+  els.toggleEditMode?.addEventListener("click", toggleEditMode);
   els.cancelAddSite.addEventListener("click", closeAddSiteModal);
   els.saveAddSite.addEventListener("click", saveCustomSite);
-  els.cancelComment.addEventListener("click", closeComments);
-  els.submitComment.addEventListener("click", submitComment);
-  els.addTodo.addEventListener("click", addTodo);
+  els.addTodo?.addEventListener("click", addTodo);
   els.todoInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") addTodo();
   });
-  els.openUpload.addEventListener("click", () => openUploadModal("upload"));
   els.openApply.addEventListener("click", () => openUploadModal("apply"));
   els.cancelUpload.addEventListener("click", closeUploadModal);
   els.saveUpload.addEventListener("click", saveUpload);
-  els.pomodoroToggle.addEventListener("click", togglePomodoro);
-  els.pomodoroTime.addEventListener("click", (event) => {
+  els.pomodoroToggle.addEventListener("click", (event) => {
     event.stopPropagation();
-    els.timePicker.classList.toggle("show");
+    togglePomodoro();
   });
   els.timeHours.addEventListener("change", applyTimePicker);
   els.timeMinutes.addEventListener("change", applyTimePicker);
   els.timeSeconds.addEventListener("change", applyTimePicker);
+  els.headerSitesIcon?.addEventListener("click", (event) => {
+    console.log("Icon clicked");
+    event.stopPropagation();
+    toggleGlobalDrawer("sites");
+  });
+  els.headerTodoIcon?.addEventListener("click", (event) => {
+    console.log("Icon clicked");
+    event.stopPropagation();
+    toggleGlobalDrawer("todos");
+  });
+  els.headerStudyIcon?.addEventListener("click", (event) => {
+    console.log("Icon clicked");
+    event.stopPropagation();
+    toggleGlobalDrawer("study");
+  });
+  els.globalDrawerBackdrop?.addEventListener("click", () => {
+    closeAllFloatingPanels();
+  });
   document.addEventListener("click", (event) => {
-    if (!els.timeWrap.contains(event.target)) {
-      els.timePicker.classList.remove("show");
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    const clickedInsideModal =
+      target instanceof Element &&
+      Boolean(target.closest(".modal") || target.closest(".modal-card"));
+    if (clickedInsideModal) {
+      return;
+    }
+    const clickedInsideFloatingPanel =
+      (els.globalDrawer?.contains(target) || false) ||
+      (els.headerQuickActions?.contains(target) || false) ||
+      (els.addSiteModal?.contains(target) || false) ||
+      (els.uploadModal?.contains(target) || false);
+    if (!clickedInsideFloatingPanel) {
+      closeAllFloatingPanels();
     }
   });
-  const roomHeader = els.studyRoom.querySelector(".room-header");
-  if (roomHeader) {
-    roomHeader.addEventListener("pointerdown", handleRoomDragStart);
+  document.addEventListener("keydown", (event) => {
+    if (event.isComposing || event.defaultPrevented) return;
+    if (event.key === "Escape") {
+      closeAllFloatingPanels();
+    }
+  });
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("beforeunload", stopOnlineCountPolling);
+  window.addEventListener("resize", syncDesktopLayoutMetrics);
+  if (els.roomQuote) {
+    els.roomQuote.addEventListener("change", () => {
+      storage.setRoomQuote(els.roomQuote.value.trim());
+    });
   }
-  document.addEventListener("pointermove", handleRoomDragMove);
-  document.addEventListener("pointerup", handleRoomDragEnd);
-  els.roomQuote.addEventListener("change", () => {
-    storage.setRoomQuote(els.roomQuote.value.trim());
-  });
-  els.roomToggle.addEventListener("click", () => {
-    const isCollapsed = els.studyRoom.classList.toggle("collapsed");
-    els.roomToggle.textContent = isCollapsed ? "<" : ">";
-  });
-  els.sortSelect.addEventListener("change", renderResources);
   els.searchInput.addEventListener("input", () => {
     renderResources();
     renderSites();
   });
+  els.brand?.addEventListener("click", handleBrandHomeNavigation);
+  els.brand?.addEventListener("keydown", handleBrandKeydown);
+  syncDesktopLayoutMetrics();
 }
 
 loadData();

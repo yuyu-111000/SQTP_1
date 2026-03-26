@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Site, SiteSection
-from ..schemas import SiteAssign, SiteCreate, SiteOut, SiteSectionCreate, SiteSectionOut
+from ..schemas import SiteAssign, SiteCreate, SiteOut, SiteSectionCreate, SiteSectionOut, SiteUpdate
 
 router = APIRouter(prefix="/sites", tags=["sites"])
 
@@ -81,6 +81,22 @@ def create_site(payload: SiteCreate, db: Session = Depends(get_db)):
         section_id=payload.section_id,
     )
     db.add(site)
+    db.commit()
+    db.refresh(site)
+    return site
+
+
+@router.patch("/{site_id}", response_model=SiteOut)
+def update_site(site_id: str, payload: SiteUpdate, db: Session = Depends(get_db)):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="site not found")
+    if payload.title is None:
+        raise HTTPException(status_code=400, detail="title is required")
+    next_title = payload.title.strip()
+    if not next_title:
+        raise HTTPException(status_code=400, detail="title is required")
+    site.title = next_title
     db.commit()
     db.refresh(site)
     return site

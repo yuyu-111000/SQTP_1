@@ -9,49 +9,114 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="brand">
-      <div class="brand-mark">Z</div>
-      <div>
+    <div class="brand" id="brand-home" aria-label="品牌主页" role="button" tabindex="0">
+      <div class="brand-mark" role="img" aria-label="品牌标识">Z</div>
+      <div class="brand-meta">
         <h1>拾光伴学</h1>
-        <p>一站式学习资料与校园入口</p>
       </div>
     </div>
     <div class="header-search">
       <input id="search-input" type="search" placeholder="输入资料的关键词..." />
     </div>
+    <div class="header-quick-actions" id="header-quick-actions">
+      <div class="header-study-summary" aria-live="polite">
+        <span class="pomodoro-display" id="pomodoro-time-display">00:25:00</span>
+        <span class="online" style="opacity: 0.6;">
+          <span class="dot"></span><span id="online-count">0</span> 人在线
+        </span>
+      </div>
+      <button class="header-action-btn" id="btn-sites" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="常用网站">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h4.2a2.5 2.5 0 0 1 1.9.9l1.1 1.3c.3.4.8.6 1.3.6H18A2.5 2.5 0 0 1 20.5 9v8.5A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" fill="currentColor"/>
+        </svg>
+      </button>
+      <button class="header-action-btn" id="btn-todo" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="待办事项">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9.6 16.8 5.8 13l1.4-1.4 2.4 2.4 6.6-6.6 1.4 1.4-8 8Z" fill="currentColor"/>
+          <path d="M4.5 4h15a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4Zm.5 2v12h14V6H5Z" fill="currentColor"/>
+        </svg>
+      </button>
+      <button class="header-action-btn" id="btn-study" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="自习室控制">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5.2A1.2 1.2 0 0 1 5.2 4h13.6A1.2 1.2 0 0 1 20 5.2V7h-2V6H6v12h5v2H5.2A1.2 1.2 0 0 1 4 18.8V5.2Z" fill="currentColor"/>
+          <path d="M14 10h6v2h-6v-2Zm0 4h6v2h-6v-2Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
-  <section class="top-row">
-    <section class="sites-section">
-      <div class="content-header">
-        <div>
-          <h2>常用网站</h2>
-          <div class="chip">快捷访问网站主页</div>
+  <aside class="global-drawer" id="global-drawer" aria-hidden="true">
+    <div class="global-drawer-panels">
+      <section class="global-panel" data-panel="sites" aria-hidden="true">
+        <div class="content-header">
+          <div class="section-head-main">
+            <h2>常用网站</h2>
+          </div>
+          <div class="section-actions">
+            <button class="icon-action-btn" id="open-add-site" type="button" aria-label="添加网站" title="添加网站" data-tooltip="添加网站">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4Z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button class="icon-action-btn" id="toggle-edit-mode" type="button" aria-pressed="false" aria-label="编辑模式" title="编辑模式" data-tooltip="编辑模式">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m4 16.9 9.9-9.9 3.1 3.1-9.9 9.9-3.7.6.6-3.7Zm11.3-11.3 1.4-1.4a1.8 1.8 0 0 1 2.6 0l.5.5a1.8 1.8 0 0 1 0 2.6l-1.4 1.4-3.1-3.1Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="section-actions">
-          <button class="btn ghost" id="open-vpn" type="button" onclick="window.open('https://webvpn.zju.edu.cn/login','_blank')">登录VPN</button>
-          <input id="section-name" type="text" placeholder="新建分区名称" />
-          <button class="btn ghost" id="add-section">新建分区</button>
-          <button class="btn primary" id="open-add-site">+ 添加网站</button>
-        </div>
-      </div>
-      <div id="site-container" class="site-sections"></div>
-    </section>
+        <div id="site-container" class="site-list site-container"></div>
+      </section>
 
-    <section class="todo-card">
-      <div class="content-header">
-        <div>
-          <h2>待办</h2>
-          <div class="chip">今天的任务</div>
+      <section class="global-panel" data-panel="todos" aria-hidden="true">
+        <div class="content-header">
+          <div class="section-head-main">
+            <h2>待办</h2>
+          </div>
+          <div class="todo-input">
+            <input id="todo-input" type="text" placeholder="添加一个待办..." />
+          </div>
         </div>
-        <div class="todo-input">
-          <input id="todo-input" type="text" placeholder="添加一个待办..." />
-          <button class="btn primary" id="add-todo">添加</button>
+        <div class="todo-list" id="todo-list"></div>
+      </section>
+
+      <section class="global-panel" data-panel="study" aria-hidden="true">
+        <div class="content-header">
+          <div class="section-head-main">
+            <h2>自习室控制</h2>
+          </div>
+          <div class="study-panel-main">
+            <div class="pomodoro-inline">
+              <span class="pomodoro-label" id="pomodoro-mode">专注中</span>
+              <button class="pomodoro-time" id="pomodoro-time" type="button">00:25:00</button>
+            </div>
+            <button class="icon-action-btn pomodoro-toggle-icon" id="pomodoro-toggle" type="button" aria-label="开始" title="开始" data-tooltip="开始">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5.5v13l10-6.5-10-6.5Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="todo-list" id="todo-list"></div>
-    </section>
-  </section>
+        <div class="study-control-panel" id="study-control-panel">
+          <div class="control-group">
+            <label>倒计时设置</label>
+            <div class="time-picker" id="time-picker">
+              <select id="time-hours" size="5"></select>
+              <span>:</span>
+              <select id="time-minutes" size="5"></select>
+              <span>:</span>
+              <select id="time-seconds" size="5"></select>
+            </div>
+          </div>
+          <div class="control-group room-tip">
+            <label>给我的一句话</label>
+            <input id="room-quote" type="text" placeholder="保持节奏，别急。" />
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+  <div class="global-drawer-backdrop" id="global-drawer-backdrop" aria-hidden="true"></div>
 
   <main class="layout">
     <aside class="sidebar">
@@ -64,69 +129,39 @@
       </section>
     </aside>
 
-    <section class="content">
-      <div class="content-header">
-        <div class="title-group">
-          <h2 id="resource-title">学科资源</h2>
-          <div class="chip" id="resource-subtitle">按学科分类的资料入口</div>
-        </div>
-        <div class="content-actions">
-          <button class="btn ghost" id="open-upload">上传内容</button>
-          <div class="sort-group">
-            <label class="sort-label" for="sort-select">排序</label>
-            <select id="sort-select">
-              <option value="hot" selected>热度优先</option>
-              <option value="new">最新优先</option>
-            </select>
+    <div class="main-content main-scroll-shell" id="main-content">
+      <div class="main-content-inner">
+        <div class="content" id="home-view" aria-label="主页">
+          <div class="home-welcome">
+            <h2>欢迎来到拾光伴学</h2>
+            <p id="home-intro-text">这里是你的学习发现页，你可以在左侧快速切换学科资源，在右侧沉淀稍后再学清单，让学习节奏更清晰、更轻松。</p>
           </div>
         </div>
-      </div>
 
-      <div id="resource-container" class="card-grid"></div>
-    </section>
+        <div class="content hidden" id="resource-content">
+          <div class="content-header">
+            <div class="title-group">
+              <h2 id="resource-title">学科资源</h2>
+              <span class="resource-subtitle" id="resource-subtitle">按学科分区浏览当前资源</span>
+            </div>
+          </div>
+
+          <div id="resource-container" class="card-grid resource-grid-3"></div>
+        </div>
+      </div>
+    </div>
 
     <aside class="later-card">
       <div class="content-header">
-        <div>
+        <div class="section-head-main">
           <h2>稍后再学</h2>
-          <div class="chip">收藏清单</div>
+          <div class="chip section-desc">收藏清单</div>
         </div>
       </div>
       <div class="later-list" id="later-list"></div>
     </aside>
 
   </main>
-
-  <aside class="study-room floating" id="study-room">
-    <button class="room-toggle" id="room-toggle">&gt;</button>
-    <div class="room-header">
-      <h2>在线自习室</h2>
-      <div class="online"><span class="dot"></span><span id="online-count">0</span> 人在线</div>
-    </div>
-
-    <div class="pomodoro">
-      <div class="pomodoro-label" id="pomodoro-mode">专注中</div>
-      <div class="time-wrap" id="time-wrap">
-        <button class="pomodoro-time" id="pomodoro-time" type="button">00:25:00</button>
-        <div class="time-picker" id="time-picker">
-          <select id="time-hours" size="5"></select>
-          <span>:</span>
-          <select id="time-minutes" size="5"></select>
-          <span>:</span>
-          <select id="time-seconds" size="5"></select>
-        </div>
-      </div>
-    </div>
-
-    <div class="room-actions">
-      <button class="btn primary" id="pomodoro-toggle">开始</button>
-    </div>
-
-    <div class="room-tip">
-      <label>给自己的一句话</label>
-      <input id="room-quote" type="text" placeholder="保持节奏，别急。" />
-    </div>
-  </aside>
 
   <div class="modal" id="add-site-modal">
     <div class="modal-card">
@@ -146,21 +181,6 @@
       <div class="modal-actions">
         <button class="btn ghost" id="cancel-add-site">取消</button>
         <button class="btn primary" id="save-add-site">保存</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal" id="comments-modal">
-    <div class="modal-card wide">
-      <h3 id="comments-title">评论区</h3>
-      <div class="comments-list" id="comments-list"></div>
-      <div class="comment-input">
-        <input id="comment-user" type="text" placeholder="昵称（可留空）" />
-        <textarea id="comment-content" rows="3" placeholder="写下你的看法..."></textarea>
-      </div>
-      <div class="modal-actions">
-        <button class="btn ghost" id="cancel-comment">关闭</button>
-        <button class="btn primary" id="submit-comment">发布评论</button>
       </div>
     </div>
   </div>

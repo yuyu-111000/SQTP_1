@@ -86,3 +86,47 @@ def test_delete_section_moves_sites():
         assert site.section_id == "default"
     finally:
         db.close()
+
+
+def test_rename_site_title():
+    reset_db()
+    client = TestClient(app)
+
+    section = client.post("/sites/sections", json={"name": "默认分区"}).json()
+    site = client.post(
+        "/sites",
+        json={
+            "title": "GitHub",
+            "url": "https://github.com",
+            "description": "代码托管",
+            "section_id": section["id"],
+        },
+    ).json()
+
+    rename = client.patch(f"/sites/{site['id']}", json={"title": "GitHub Pro"})
+    assert rename.status_code == 200
+    assert rename.json()["title"] == "GitHub Pro"
+
+
+def test_rename_site_title_validation_and_not_found():
+    reset_db()
+    client = TestClient(app)
+
+    section = client.post("/sites/sections", json={"name": "默认分区"}).json()
+    site = client.post(
+        "/sites",
+        json={
+            "title": "CC98",
+            "url": "https://www.cc98.org/",
+            "description": "论坛",
+            "section_id": section["id"],
+        },
+    ).json()
+
+    invalid = client.patch(f"/sites/{site['id']}", json={"title": "   "})
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"] == "title is required"
+
+    missing = client.patch("/sites/not_exists", json={"title": "新名称"})
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "site not found"
