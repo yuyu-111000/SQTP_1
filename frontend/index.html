@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Source+Han+Serif+SC:wght@600&family=Source+Han+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
+  <div class="app-shell">
   <header class="site-header">
     <div class="brand" id="brand-home" aria-label="品牌主页" role="button" tabindex="0">
       <div class="brand-mark" role="img" aria-label="品牌标识">Z</div>
@@ -19,17 +20,6 @@
       <input id="search-input" type="search" placeholder="输入资料的关键词..." />
     </div>
     <div class="header-quick-actions" id="header-quick-actions">
-      <div class="header-study-summary" aria-live="polite">
-        <span class="pomodoro-display" id="pomodoro-time-display">00:25:00</span>
-        <span class="online" style="opacity: 0.6;">
-          <span class="dot"></span><span id="online-count">0</span> 人在线
-        </span>
-      </div>
-      <button class="header-action-btn" id="btn-sites" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="常用网站">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3.5 6.5A2.5 2.5 0 0 1 6 4h4.2a2.5 2.5 0 0 1 1.9.9l1.1 1.3c.3.4.8.6 1.3.6H18A2.5 2.5 0 0 1 20.5 9v8.5A2.5 2.5 0 0 1 18 20H6a2.5 2.5 0 0 1-2.5-2.5v-11Z" fill="currentColor"/>
-        </svg>
-      </button>
       <button class="header-action-btn" id="btn-todo" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="待办事项">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9.6 16.8 5.8 13l1.4-1.4 2.4 2.4 6.6-6.6 1.4 1.4-8 8Z" fill="currentColor"/>
@@ -47,27 +37,6 @@
 
   <aside class="global-drawer" id="global-drawer" aria-hidden="true">
     <div class="global-drawer-panels">
-      <section class="global-panel" data-panel="sites" aria-hidden="true">
-        <div class="content-header">
-          <div class="section-head-main">
-            <h2>常用网站</h2>
-          </div>
-          <div class="section-actions">
-            <button class="icon-action-btn" id="open-add-site" type="button" aria-label="添加网站" title="添加网站" data-tooltip="添加网站">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4Z" fill="currentColor"/>
-              </svg>
-            </button>
-            <button class="icon-action-btn" id="toggle-edit-mode" type="button" aria-pressed="false" aria-label="编辑模式" title="编辑模式" data-tooltip="编辑模式">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m4 16.9 9.9-9.9 3.1 3.1-9.9 9.9-3.7.6.6-3.7Zm11.3-11.3 1.4-1.4a1.8 1.8 0 0 1 2.6 0l.5.5a1.8 1.8 0 0 1 0 2.6l-1.4 1.4-3.1-3.1Z" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <div id="site-container" class="site-list site-container"></div>
-      </section>
-
       <section class="global-panel" data-panel="todos" aria-hidden="true">
         <div class="content-header">
           <div class="section-head-main">
@@ -118,7 +87,8 @@
   </aside>
   <div class="global-drawer-backdrop" id="global-drawer-backdrop" aria-hidden="true"></div>
 
-  <main class="layout">
+  <div class="workspace-shell">
+    <main class="layout">
     <aside class="sidebar">
       <section class="nav-section">
         <h2>学科资源</h2>
@@ -161,7 +131,57 @@
       <div class="later-list" id="later-list"></div>
     </aside>
 
-  </main>
+    </main>
+
+    <section class="bottom-panel" id="bottom-panel" aria-hidden="true" tabindex="-1">
+      <div class="bottom-panel-inner">
+        <button class="bottom-panel-handle" id="bottom-panel-handle" type="button" aria-label="收起常用网站面板"></button>
+        <div class="content-header">
+          <div class="section-head-main">
+            <h2>常用网站</h2>
+          </div>
+          <div class="section-actions">
+            <button class="icon-action-btn" id="open-add-site" type="button" aria-label="添加网站" title="添加网站" data-tooltip="添加网站">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7V4Z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button class="icon-action-btn" id="toggle-edit-mode" type="button" aria-pressed="false" aria-label="编辑模式" title="编辑模式" data-tooltip="编辑模式">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m4 16.9 9.9-9.9 3.1 3.1-9.9 9.9-3.7.6.6-3.7Zm11.3-11.3 1.4-1.4a1.8 1.8 0 0 1 2.6 0l.5.5a1.8 1.8 0 0 1 0 2.6l-1.4 1.4-3.1-3.1Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="site-container" class="site-list site-container"></div>
+      </div>
+    </section>
+
+    <footer class="bottom-bar" aria-label="底部状态栏">
+      <div class="bottom-bar-left">
+        <button class="bottom-bar-btn" id="btn-bottom-sites" type="button" aria-expanded="false" aria-controls="bottom-panel" aria-label="切换常用网站面板">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="bottom-bar-icon">
+            <path d="M3 4h18v16H3V4m3 2h12M6 10h12M6 14h6" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>常用网站</span>
+        </button>
+        <span class="bottom-hotkey-tag">⌘/Ctrl + J</span>
+      </div>
+      <div class="bottom-bar-right" aria-live="polite">
+        <span class="bottom-status-item">
+          <span class="online-pulse" aria-hidden="true"></span>
+          <span id="online-count">0</span> 人在线
+        </span>
+        <span class="bottom-status-item">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="bottom-clock-icon">
+            <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7zm3.5-9L11 13.5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span id="pomodoro-time-display">00:25:00</span>
+        </span>
+      </div>
+    </footer>
+  </div>
+  </div>
 
   <div class="modal" id="add-site-modal">
     <div class="modal-card">

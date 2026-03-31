@@ -56,9 +56,12 @@ const els = {
   siteDesc: document.getElementById("site-desc"),
   resourceContent: document.getElementById("resource-content"),
   headerQuickActions: document.getElementById("header-quick-actions"),
-  headerSitesIcon: document.getElementById("btn-sites"),
   headerTodoIcon: document.getElementById("btn-todo"),
   headerStudyIcon: document.getElementById("btn-study"),
+  bottomSitesBtn: document.getElementById("btn-bottom-sites"),
+  bottomPanel: document.getElementById("bottom-panel"),
+  bottomPanelHandle: document.getElementById("bottom-panel-handle"),
+  bottomBar: document.querySelector(".bottom-bar"),
   roomQuote: document.getElementById("room-quote"),
   globalDrawer: document.getElementById("global-drawer"),
   globalDrawerBackdrop: document.getElementById("global-drawer-backdrop"),
@@ -84,10 +87,12 @@ const els = {
 const uiState = {
   uploadMode: "upload",
   activePanel: null,
-  editingSiteId: null
+  editingSiteId: null,
+  isBottomPanelVisible: false
 };
 
 let onlineCountPollTimer = null;
+let bottomPanelTouchStartY = null;
 
 const storage = {
   customSitesKey: "userCustomSites",
@@ -175,12 +180,43 @@ async function loadData() {
 function syncHeaderPanelState() {
   const panel = uiState.activePanel;
   const isOpen = Boolean(panel);
-  els.headerSitesIcon?.classList.toggle("is-active", panel === "sites");
   els.headerTodoIcon?.classList.toggle("is-active", panel === "todos");
   els.headerStudyIcon?.classList.toggle("is-active", panel === "study");
-  els.headerSitesIcon?.setAttribute("aria-expanded", String(isOpen && panel === "sites"));
   els.headerTodoIcon?.setAttribute("aria-expanded", String(isOpen && panel === "todos"));
   els.headerStudyIcon?.setAttribute("aria-expanded", String(isOpen && panel === "study"));
+}
+
+function syncBottomPanelState() {
+  const isVisible = uiState.isBottomPanelVisible;
+  els.bottomPanel?.classList.toggle("is-open", isVisible);
+  els.bottomPanel?.setAttribute("aria-hidden", String(!isVisible));
+  els.bottomSitesBtn?.classList.toggle("is-active", isVisible);
+  els.bottomSitesBtn?.setAttribute("aria-expanded", String(isVisible));
+}
+
+function openBottomPanel({ focusPanel = true } = {}) {
+  uiState.isBottomPanelVisible = true;
+  closeGlobalDrawer();
+  syncBottomPanelState();
+  if (focusPanel) {
+    els.bottomPanel?.focus({ preventScroll: true });
+  }
+}
+
+function closeBottomPanel({ restoreTriggerFocus = false } = {}) {
+  uiState.isBottomPanelVisible = false;
+  syncBottomPanelState();
+  if (restoreTriggerFocus) {
+    els.bottomSitesBtn?.focus({ preventScroll: true });
+  }
+}
+
+function toggleBottomPanel() {
+  if (uiState.isBottomPanelVisible) {
+    closeBottomPanel({ restoreTriggerFocus: true });
+    return;
+  }
+  openBottomPanel({ focusPanel: true });
 }
 
 function setGlobalPanel(panelName) {
@@ -195,6 +231,7 @@ function setGlobalPanel(panelName) {
 function openGlobalDrawer(panelName) {
   const drawer = document.getElementById("global-drawer");
   if (!drawer || !panelName) return;
+  closeBottomPanel();
   uiState.activePanel = panelName;
   drawer.classList.toggle("is-open", true);
   drawer.setAttribute("aria-hidden", "false");
@@ -230,6 +267,7 @@ function toggleGlobalDrawer(panelName) {
 
 function closeAllFloatingPanels() {
   closeGlobalDrawer();
+  closeBottomPanel();
 }
 
 function initCategories() {
@@ -361,15 +399,18 @@ async function renameSiteTitle(siteId, nextTitle) {
       body: JSON.stringify({ title })
     });
     state.sites = state.sites.map((site) => (site.id === siteId ? updated : site));
-    uiState.editingSiteId = null;
-    renderSites();
-    return true;
   } catch (error) {
-    alert("重命名失败，请稍后重试。");
-    uiState.editingSiteId = null;
-    renderSites();
-    return false;
+    const customSites = storage.getCustomSites();
+    const siteToUpdate = customSites.find(s => s.id === siteId);
+    if (siteToUpdate) {
+      siteToUpdate.title = title;
+      storage.setCustomSites(customSites);
+    }
+    state.sites = state.sites.map((site) => (site.id === siteId ? { ...site, title } : site));
   }
+  uiState.editingSiteId = null;
+  renderSites();
+  return true;
 }
 
 function renderSites() {
@@ -420,8 +461,13 @@ function createTodoItem(todo) {
   label.appendChild(text);
 
   const del = document.createElement("button");
-  del.className = "btn ghost btn-xs";
-  del.textContent = "删除";
+  del.className = "remove-later-btn";
+  del.setAttribute("aria-label", "移除");
+  del.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  `;
   del.addEventListener("click", () => deleteTodo(todo.id));
 
   item.appendChild(label);
@@ -502,8 +548,12 @@ function renderLaterList(list) {
     const row = document.createElement("div");
     row.className = "later-item";
     row.innerHTML = `
-      <span>${item.title}</span>
-      <button class="btn ghost btn-xs" data-id="${item.resource_id || item.id}">移除</button>
+      <span class="later-item-title">${item.title}</span>
+      <button class="remove-later-btn" data-id="${item.resource_id || item.id}" aria-label="移除" >
+        <svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
     `;
     row.querySelector("button").addEventListener("click", () => removeFromLaterList(item.resource_id || item.id));
     els.laterList.appendChild(row);
@@ -699,10 +749,12 @@ async function deleteSiteById(siteId, title) {
   try {
     await fetchJson(`${API_BASE}/sites/${siteId}`, { method: "DELETE" });
     state.sites = state.sites.filter((site) => site.id !== siteId);
-    renderSites();
   } catch (error) {
-    alert("删除网站失败，请稍后重试。");
+    const customSites = storage.getCustomSites();
+    storage.setCustomSites(customSites.filter(s => s.id !== siteId));
+    state.sites = state.sites.filter((site) => site.id !== siteId);
   }
+  renderSites();
 }
 
 function createSiteCard(item) {
@@ -715,10 +767,15 @@ function createSiteCard(item) {
 
   const head = document.createElement("div");
   head.className = "site-head";
+  const main = document.createElement("div");
+  main.className = "site-main";
   const icon = document.createElement("div");
   icon.className = "site-icon";
   icon.textContent = initial;
-  head.appendChild(icon);
+  main.appendChild(icon);
+
+  const actions = document.createElement("div");
+  actions.className = "site-actions";
 
   if (isEditMode) {
     const input = document.createElement("input");
@@ -744,7 +801,7 @@ function createSiteCard(item) {
     input.addEventListener("blur", async () => {
       await submitRename();
     });
-    head.appendChild(input);
+    main.appendChild(input);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.className = "site-delete-btn";
@@ -754,16 +811,19 @@ function createSiteCard(item) {
       e.stopPropagation();
       await deleteSiteById(item.id, item.title);
     });
-    head.appendChild(deleteBtn);
+
+    actions.appendChild(deleteBtn);
   } else {
     const title = document.createElement("h3");
     title.className = "site-title";
     title.textContent = item.title;
-    head.appendChild(title);
+    main.appendChild(title);
   }
+  head.appendChild(main);
+  head.appendChild(actions);
   card.appendChild(head);
 
-  // 点击打开网站
+
   card.addEventListener("click", (e) => {
     if (els.siteContainer?.classList.contains("is-editing")) {
       e.preventDefault();
@@ -774,15 +834,55 @@ function createSiteCard(item) {
     window.open(item.url, "_blank");
   });
 
-  // 拖拽处理
+
+  
   card.addEventListener("dragstart", (event) => {
+    
+    if (els.searchInput.value.trim() !== "" || !els.siteContainer.classList.contains("is-editing")) {
+      event.preventDefault();
+      return;
+    }
     state.isDraggingSite = true;
+    state.draggedSiteId = item.id; 
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(item.id));
-    event.dataTransfer.setData("text/site-id", String(item.id));
+    card.style.opacity = "0.4"; 
   });
+
   card.addEventListener("dragend", () => {
     state.isDraggingSite = false;
+    state.draggedSiteId = null;
+    card.style.opacity = "1";
+  });
+
+  
+  card.addEventListener("dragover", (event) => {
+    if (!els.siteContainer.classList.contains("is-editing")) return;
+    event.preventDefault(); 
+    event.dataTransfer.dropEffect = "move";
+  });
+
+  card.addEventListener("drop", (event) => {
+    if (!els.siteContainer.classList.contains("is-editing")) return;
+    event.preventDefault();
+    
+    const draggedId = state.draggedSiteId || event.dataTransfer.getData("text/plain");
+    if (!draggedId || draggedId === item.id) return;
+
+    const oldIndex = state.sites.findIndex(s => s.id === draggedId);
+    const newIndex = state.sites.findIndex(s => s.id === item.id);
+
+    if (oldIndex > -1 && newIndex > -1) {
+      
+      const [movedItem] = state.sites.splice(oldIndex, 1);
+      state.sites.splice(newIndex, 0, movedItem);
+      
+    
+      const currentOrder = state.sites.map(s => s.id);
+      localStorage.setItem("siteSortOrder", JSON.stringify(currentOrder));
+      
+      renderSites();
+    }
   });
   return card;
 }
@@ -805,12 +905,26 @@ function setupDropZone(zone, sectionId) {
 }
 
 async function fetchSiteData(fallbackSites) {
+  const localCustomSites = storage.getCustomSites();
   try {
     state.siteSections = await fetchJson(`${API_BASE}/sites/sections`);
-    state.sites = await fetchJson(`${API_BASE}/sites`);
+    const apiSites = await fetchJson(`${API_BASE}/sites`);
+    state.sites = [...apiSites, ...localCustomSites];
   } catch (error) {
-    state.siteSections = [];
-    state.sites = fallbackSites || [];
+    state.siteSections = storage.getSiteSections();
+    state.sites = [...(fallbackSites || []), ...localCustomSites];
+  }
+  const savedOrderStr = localStorage.getItem("siteSortOrder");
+  if (savedOrderStr) {
+    const sortOrder = JSON.parse(savedOrderStr);
+    state.sites.sort((a, b) => {
+      const indexA = sortOrder.indexOf(a.id);
+      const indexB = sortOrder.indexOf(b.id);
+      
+      const posA = indexA === -1 ? 9999 : indexA;
+      const posB = indexB === -1 ? 9999 : indexB;
+      return posA - posB;
+    });
   }
 }
 
@@ -1061,18 +1175,31 @@ function bindEvents() {
   els.timeHours.addEventListener("change", applyTimePicker);
   els.timeMinutes.addEventListener("change", applyTimePicker);
   els.timeSeconds.addEventListener("change", applyTimePicker);
-  els.headerSitesIcon?.addEventListener("click", (event) => {
-    console.log("Icon clicked");
+  els.bottomSitesBtn?.addEventListener("click", (event) => {
     event.stopPropagation();
-    toggleGlobalDrawer("sites");
+    toggleBottomPanel();
   });
+  els.bottomPanelHandle?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeBottomPanel({ restoreTriggerFocus: true });
+  });
+  els.bottomPanelHandle?.addEventListener("touchstart", (event) => {
+    bottomPanelTouchStartY = event.touches?.[0]?.clientY ?? null;
+  }, { passive: true });
+  els.bottomPanelHandle?.addEventListener("touchend", (event) => {
+    if (bottomPanelTouchStartY === null) return;
+    const endY = event.changedTouches?.[0]?.clientY ?? bottomPanelTouchStartY;
+    const delta = endY - bottomPanelTouchStartY;
+    bottomPanelTouchStartY = null;
+    if (delta > 48) {
+      closeBottomPanel({ restoreTriggerFocus: false });
+    }
+  }, { passive: true });
   els.headerTodoIcon?.addEventListener("click", (event) => {
-    console.log("Icon clicked");
     event.stopPropagation();
     toggleGlobalDrawer("todos");
   });
   els.headerStudyIcon?.addEventListener("click", (event) => {
-    console.log("Icon clicked");
     event.stopPropagation();
     toggleGlobalDrawer("study");
   });
@@ -1082,6 +1209,21 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Node)) return;
+    const isEditingSites = els.siteContainer?.classList.contains("is-editing");
+    if (isEditingSites) {
+      
+      const clickedInsideCard = target instanceof Element && target.closest('.site-card');
+      const clickedEditToggle = els.toggleEditMode?.contains(target);
+      
+      
+      if (!clickedInsideCard && !clickedEditToggle) {
+        els.siteContainer.classList.remove("is-editing");
+        document.body.dataset.editMode = "false";
+        els.toggleEditMode?.setAttribute("aria-pressed", "false");
+        uiState.editingSiteId = null;
+        renderSites();
+      }
+    }
     const clickedInsideModal =
       target instanceof Element &&
       Boolean(target.closest(".modal") || target.closest(".modal-card"));
@@ -1091,6 +1233,8 @@ function bindEvents() {
     const clickedInsideFloatingPanel =
       (els.globalDrawer?.contains(target) || false) ||
       (els.headerQuickActions?.contains(target) || false) ||
+      (els.bottomPanel?.contains(target) || false) ||
+      (els.bottomBar?.contains(target) || false) ||
       (els.addSiteModal?.contains(target) || false) ||
       (els.uploadModal?.contains(target) || false);
     if (!clickedInsideFloatingPanel) {
@@ -1099,6 +1243,16 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.isComposing || event.defaultPrevented) return;
+    const target = event.target;
+    const isTypingTarget =
+      target instanceof HTMLElement &&
+      (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
+    if (isTypingTarget && event.key !== "Escape") return;
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") {
+      event.preventDefault();
+      toggleBottomPanel();
+      return;
+    }
     if (event.key === "Escape") {
       closeAllFloatingPanels();
     }
@@ -1118,6 +1272,7 @@ function bindEvents() {
   els.brand?.addEventListener("click", handleBrandHomeNavigation);
   els.brand?.addEventListener("keydown", handleBrandKeydown);
   syncDesktopLayoutMetrics();
+  syncBottomPanelState();
 }
 
 loadData();
