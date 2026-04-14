@@ -1,8 +1,9 @@
 import time
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from ..db import get_db
 from ..models import Site, SiteSection
@@ -64,12 +65,12 @@ def delete_section(section_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[SiteOut])
-def list_sites(db: Session = Depends(get_db)):
-    return db.query(Site).order_by(Site.title.asc()).all()
-
+def list_sites(x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    
+    return db.query(Site).filter(or_(Site.client_id == "default", Site.client_id == x_client_id)).order_by(Site.title.asc()).all()
 
 @router.post("", response_model=SiteOut)
-def create_site(payload: SiteCreate, db: Session = Depends(get_db)):
+def create_site(payload: SiteCreate, x_client_id: str = Header(...), db: Session = Depends(get_db)):
     section = db.query(SiteSection).filter(SiteSection.id == payload.section_id).first()
     if not section:
         raise HTTPException(status_code=404, detail="section not found")
@@ -79,34 +80,25 @@ def create_site(payload: SiteCreate, db: Session = Depends(get_db)):
         url=payload.url,
         description=payload.description,
         section_id=payload.section_id,
+        client_id=x_client_id, 
     )
     db.add(site)
     db.commit()
     db.refresh(site)
     return site
 
-
 @router.patch("/{site_id}", response_model=SiteOut)
-def update_site(site_id: str, payload: SiteUpdate, db: Session = Depends(get_db)):
-    site = db.query(Site).filter(Site.id == site_id).first()
+def update_site(site_id: str, payload: SiteUpdate, x_client_id: str = Header(...), db: Session = Depends(get_db)):
+
+    site = db.query(Site).filter(Site.id == site_id, Site.client_id == x_client_id).first()
     if not site:
-        raise HTTPException(status_code=404, detail="site not found")
-    if payload.title is None:
-        raise HTTPException(status_code=400, detail="title is required")
-    next_title = payload.title.strip()
-    if not next_title:
-        raise HTTPException(status_code=400, detail="title is required")
-    site.title = next_title
-    db.commit()
-    db.refresh(site)
-    return site
-
-
+        raise HTTPException(status_code=404, detail="site not found or no permission")
+    
 @router.patch("/{site_id}/assign", response_model=SiteOut)
-def assign_site(site_id: str, payload: SiteAssign, db: Session = Depends(get_db)):
-    site = db.query(Site).filter(Site.id == site_id).first()
+def assign_site(site_id: str, payload: SiteAssign, x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    site = db.query(Site).filter(Site.id == site_id, Site.client_id == x_client_id).first()
     if not site:
-        raise HTTPException(status_code=404, detail="site not found")
+        raise HTTPException(status_code=404, detail="site not found or no permission")
     section = db.query(SiteSection).filter(SiteSection.id == payload.section_id).first()
     if not section:
         raise HTTPException(status_code=404, detail="section not found")
@@ -115,12 +107,12 @@ def assign_site(site_id: str, payload: SiteAssign, db: Session = Depends(get_db)
     db.refresh(site)
     return site
 
-
 @router.delete("/{site_id}")
-def delete_site(site_id: str, db: Session = Depends(get_db)):
-    site = db.query(Site).filter(Site.id == site_id).first()
+def delete_site(site_id: str, x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    
+    site = db.query(Site).filter(Site.id == site_id, Site.client_id == x_client_id).first()
     if not site:
-        raise HTTPException(status_code=404, detail="site not found")
+        raise HTTPException(status_code=404, detail="site not found or no permission")
     db.delete(site)
     db.commit()
     return {"deleted": True}

@@ -9,19 +9,30 @@ class SubjectOut(BaseModel):
     icon: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+    
+class ResourceCreate(BaseModel):
+    title: str
+    url: str
+    description: Optional[str] = None
+    tags: Optional[str] = None
+
+
+class ResourceUpdate(BaseModel):
+    title: Optional[str] = None
+    url: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[str] = None
+
 
 
 class ResourceOut(BaseModel):
     id: str
     subject_id: str
     title: str
-    url: str
+    url: str 
     description: Optional[str] = None
-    platform: Optional[str] = None
     tags: List[str] = []
-    created_at: Optional[int] = None
-    like_count: int = 0
-    comment_count: int = 0
+    client_id: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -118,3 +129,13 @@ class StudyRoomUpdate(BaseModel):
 class StudyRoomOut(BaseModel):
     currentUsers: int
     peakToday: int
+
+class FeedbackCreate(BaseModel):
+    content: str
+
+class FeedbackOut(BaseModel):
+    id: str
+    content: str
+    created_at: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)

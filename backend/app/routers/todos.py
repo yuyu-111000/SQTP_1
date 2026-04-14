@@ -1,7 +1,7 @@
 import time
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -12,27 +12,26 @@ router = APIRouter(prefix="/todos", tags=["todos"])
 
 
 @router.get("", response_model=List[TodoOut])
-def list_todos(db: Session = Depends(get_db)):
-    return db.query(Todo).order_by(Todo.created_at.desc()).all()
-
+def list_todos(x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    return db.query(Todo).filter(Todo.client_id == x_client_id).order_by(Todo.created_at.desc()).all()
 
 @router.post("", response_model=TodoOut)
-def create_todo(payload: TodoCreate, db: Session = Depends(get_db)):
+def create_todo(payload: TodoCreate, x_client_id: str = Header(...), db: Session = Depends(get_db)):
     todo = Todo(
         id=f"todo_{int(time.time() * 1000)}",
         text=payload.text,
         done=1 if payload.done else 0,
         created_at=int(time.time()),
+        client_id=x_client_id, 
     )
     db.add(todo)
     db.commit()
     db.refresh(todo)
     return todo
 
-
 @router.patch("/{todo_id}", response_model=TodoOut)
-def update_todo(todo_id: str, payload: TodoUpdate, db: Session = Depends(get_db)):
-    todo = db.query(Todo).filter(Todo.id == todo_id).first()
+def update_todo(todo_id: str, payload: TodoUpdate, x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.client_id == x_client_id).first()
     if not todo:
         raise HTTPException(status_code=404, detail="todo not found")
     if payload.text is not None:
@@ -43,6 +42,14 @@ def update_todo(todo_id: str, payload: TodoUpdate, db: Session = Depends(get_db)
     db.refresh(todo)
     return todo
 
+@router.delete("/{todo_id}")
+def delete_todo(todo_id: str, x_client_id: str = Header(...), db: Session = Depends(get_db)):
+    todo = db.query(Todo).filter(Todo.id == todo_id, Todo.client_id == x_client_id).first()
+    if not todo:
+        raise HTTPException(status_code=404, detail="todo not found")
+    db.delete(todo)
+    db.commit()
+    return {"deleted": True}
 
 @router.delete("/{todo_id}")
 def delete_todo(todo_id: str, db: Session = Depends(get_db)):

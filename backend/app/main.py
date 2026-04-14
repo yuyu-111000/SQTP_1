@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .db import Base, engine
-from .routers import comments, later, sites, study_room, subjects, todos
+from .routers import comments, later, sites, study_room, subjects, todos, feedback
 
 app = FastAPI(title="ZJU SQTP Backend")
 
@@ -22,6 +22,7 @@ app.include_router(sites.router)
 app.include_router(todos.router)
 app.include_router(later.router)
 app.include_router(study_room.router)
+app.include_router(feedback.router)
 
 
 @app.get("/health")

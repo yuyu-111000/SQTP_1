@@ -31,6 +31,7 @@ class Resource(Base):
     subject = relationship("Subject", back_populates="resources")
     comments = relationship("Comment", back_populates="resource", cascade="all, delete-orphan")
 
+    client_id = Column(String, index=True, nullable=False, default="default")
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -64,6 +65,7 @@ class Site(Base):
     section_id = Column(String, ForeignKey("site_sections.id"), nullable=False)
 
     section = relationship("SiteSection", back_populates="sites")
+    client_id = Column(String, index=True, nullable=False, default="default")
 
 
 class Todo(Base):
@@ -73,6 +75,7 @@ class Todo(Base):
     text = Column(String, nullable=False)
     done = Column(Integer, nullable=False, default=0)
     created_at = Column(Integer, nullable=True)
+    client_id = Column(String, index=True, nullable=False, default="default")
 
 
 class LaterItem(Base):
@@ -82,6 +85,7 @@ class LaterItem(Base):
     resource_id = Column(String, nullable=False, index=True)
     title = Column(String, nullable=False)
     created_at = Column(Integer, nullable=True)
+    client_id = Column(String, index=True, nullable=False, default="default")
 
 
 class StudyRoomStats(Base):
@@ -91,3 +95,11 @@ class StudyRoomStats(Base):
     current_users = Column(Integer, nullable=False, default=0)
     peak_today = Column(Integer, nullable=False, default=0)
     updated_at = Column(Integer, nullable=True)
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+
+    id = Column(String, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(Integer, nullable=True)
+
