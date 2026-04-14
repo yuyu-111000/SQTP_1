@@ -1,6 +1,17 @@
 const dataUrl = "./data/data.json";
-const API_BASE = "/api";
+const API_BASE = (() => {
+  if (window.__API_BASE__) return window.__API_BASE__;
+  const isLocalFiveServer =
+    window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost";
+  const isStaticDevPort = ["5500", "5501", "5502"].includes(window.location.port);
+  if (isLocalFiveServer && isStaticDevPort) {
+    return "http://127.0.0.1:8000";
+  }
+  return "/api";
+})();
 const ONLINE_COUNT_POLL_INTERVAL = 30 * 1000;
+const VIEW_KEY = "sqtp_main_view";
+const CATEGORY_KEY = "sqtp_active_resource_category";
 
 const state = {
   activeResourceCategory: null,
@@ -20,10 +31,29 @@ const state = {
   }
 };
 
-async function fetchJson(url, options) {
-  const res = await fetch(url, options);
+
+function getClientId() {
+  let clientId = localStorage.getItem("clientId");
+  if (!clientId) {
+    clientId = "client_" + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+    localStorage.setItem("clientId", clientId);
+  }
+  return clientId;
+}
+
+async function fetchJson(url, options = {}) {
+  const headers = options.headers || {};
+  headers["X-Client-ID"] = getClientId(); 
+
+  const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
-    throw new Error(`Request failed: ${res.status}`);
+    let detail = "";
+    try {
+      detail = await res.text();
+    } catch (error) {
+      detail = "";
+    }
+    throw new Error(`Request failed: ${res.status}${detail ? ` - ${detail}` : ""}`);
   }
   return res.json();
 }
@@ -37,6 +67,8 @@ const els = {
   siteContainer: document.getElementById("site-container"),
   resourceTitle: document.getElementById("resource-title"),
   resourceSubtitle: document.getElementById("resource-subtitle"),
+  openUpload: document.getElementById("open-upload"),
+  toggleResourceEdit: document.getElementById("toggle-resource-edit"),
   onlineCount: document.getElementById("online-count"),
   searchInput: document.getElementById("search-input"),
   pomodoroTime: document.getElementById("pomodoro-time"),
@@ -65,7 +97,6 @@ const els = {
   roomQuote: document.getElementById("room-quote"),
   globalDrawer: document.getElementById("global-drawer"),
   globalDrawerBackdrop: document.getElementById("global-drawer-backdrop"),
-  openApply: document.getElementById("open-apply"),
   uploadModal: document.getElementById("upload-modal"),
   uploadModalTitle: document.getElementById("upload-modal-title"),
   uploadTitleLabel: document.getElementById("upload-title-label"),
@@ -81,14 +112,26 @@ const els = {
   todoList: document.getElementById("todo-list"),
   laterList: document.getElementById("later-list"),
   pomodoroTimeDisplay: document.getElementById("pomodoro-time-display"),
-  toggleEditMode: document.getElementById("toggle-edit-mode")
+  toggleEditMode: document.getElementById("toggle-edit-mode"),
+  openFeedback: document.getElementById("open-feedback"),
+  feedbackModal: document.getElementById("feedback-modal"),
+  feedbackText: document.getElementById("feedback-text"),
+  cancelFeedback: document.getElementById("cancel-feedback"),
+  submitFeedback: document.getElementById("submit-feedback"),
+  feedbackTitle: document.getElementById("feedback-title"),
+  feedbackFormGroup: document.getElementById("feedback-form-group"),
+  feedbackActions: document.getElementById("feedback-actions"),
+  btnExport: document.getElementById("btn-export"),
+  btnImport: document.getElementById("btn-import"),
+  importFileInput: document.getElementById("import-file-input")
 };
 
 const uiState = {
   uploadMode: "upload",
   activePanel: null,
   editingSiteId: null,
-  isBottomPanelVisible: false
+  isBottomPanelVisible: false,
+  isResourceEditMode: false
 };
 
 let onlineCountPollTimer = null;
@@ -146,7 +189,66 @@ const storage = {
   setLaterList(data) {
     localStorage.setItem(this.laterKey, JSON.stringify(data));
   }
+
 };
+
+function exportUserData() {
+  const keysToExport = [
+    "clientId",
+    "userCustomSites",
+    "siteSortOrder",
+    "todoItems",
+    "resourceUploadsByCategory",
+    "laterStudyList",
+    "studyRoomQuote"
+  ];
+
+  const data = {};
+  keysToExport.forEach(key => {
+    const val = localStorage.getItem(key);
+    if (val) data[key] = val;
+  });
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `sqtp_backup_${date}.json`;
+  a.click();
+  
+  URL.revokeObjectURL(url);
+}
+
+function importUserData(event) {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      
+      if (!confirm("导入备份将覆盖当前浏览器中的所有个人数据（待办、网站、私有资源等），确定继续吗？")) {
+        els.importFileInput.value = "";
+        return;
+      }
+
+      Object.keys(data).forEach(key => {
+        localStorage.setItem(key, data[key]);
+      });
+
+      alert("导入成功！页面即将刷新以应用更改。");
+      window.location.reload();
+    } catch (err) {
+      alert("解析备份文件失败，请确保文件格式正确。");
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
 
 async function loadData() {
   let localData = {};
@@ -272,10 +374,21 @@ function closeAllFloatingPanels() {
 
 function initCategories() {
   renderCategoryList(els.resourceCategories, state.resourceData);
-  state.activeResourceCategory = null;
+
+  const savedCategory = localStorage.getItem(CATEGORY_KEY);
+  const savedView = localStorage.getItem(VIEW_KEY);
+  const matchedCategory = state.resourceData.find((item) => String(item.id) === String(savedCategory));
+
+  state.activeResourceCategory = matchedCategory?.id || state.resourceData[0]?.id || null;
   updateActiveNav();
-  showHomeView();
   renderSites();
+
+  if (savedView === "resource" && state.activeResourceCategory) {
+    showResourceView();
+    renderResources();
+    return;
+  }
+  showHomeView();
 }
 
 function syncDesktopLayoutMetrics() {
@@ -288,6 +401,7 @@ function setMainView(viewName) {
   const showHome = viewName === "home";
   els.homeView?.classList.toggle("hidden", !showHome);
   els.resourceContent?.classList.toggle("hidden", showHome);
+  localStorage.setItem(VIEW_KEY, viewName);
 }
 
 function showHomeView() {
@@ -318,6 +432,7 @@ function renderCategoryList(container, list) {
     li.textContent = item.name;
     li.addEventListener("click", () => {
       state.activeResourceCategory = item.id;
+      localStorage.setItem(CATEGORY_KEY, String(item.id));
       showResourceView();
       updateActiveNav();
       renderResources();
@@ -335,15 +450,34 @@ function updateActiveNav() {
   });
 }
 
+function ensureActiveResourceCategory() {
+  if (!state.resourceData.length) {
+    state.activeResourceCategory = null;
+    localStorage.removeItem(CATEGORY_KEY);
+    return null;
+  }
+  const current = state.resourceData.find((c) => c.id === state.activeResourceCategory);
+  if (current) {
+    localStorage.setItem(CATEGORY_KEY, String(current.id));
+    return current;
+  }
+  state.activeResourceCategory = state.resourceData[0].id;
+  localStorage.setItem(CATEGORY_KEY, String(state.activeResourceCategory));
+  return state.resourceData[0];
+}
+
 async function renderResources() {
-  const category = state.resourceData.find((c) => c.id === state.activeResourceCategory);
+  const category = ensureActiveResourceCategory();
   els.resourceTitle.textContent = category?.name || "学科资源";
   if (els.resourceSubtitle) {
     els.resourceSubtitle.textContent = category?.name ? `当前分区：${category.name}` : "按学科分区浏览当前资源";
   }
-  els.resourceContainer.innerHTML = "";
   if (!category) return;
+  
+  els.resourceContainer.innerHTML = "";
+  
   if (!state.resourceCache[category.id]) {
+
     els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
     try {
       const resources = await fetchJson(`${API_BASE}/subjects/${category.id}/resources`);
@@ -352,12 +486,30 @@ async function renderResources() {
       state.resourceCache[category.id] = category.resources || [];
     }
   }
+  
   const uploads = getUploadsForCategory(category?.id);
   const resources = applyResourceFilters([...(uploads || []), ...(state.resourceCache[category.id] || [])]);
+  
+  els.resourceContainer.innerHTML = "";
+  
+  els.resourceContainer.classList.toggle("is-editing", uiState.isResourceEditMode);
+  
+  if (resources.length === 0) {
+    els.resourceContainer.innerHTML = "<div class=\"empty-state\" style=\"width: 100%; text-align: center; color: #999; margin-top: 20px;\">暂无资源</div>";
+    return;
+  }
+
   resources.forEach((item) => {
     const card = createResourceCard(item);
     els.resourceContainer.appendChild(card);
   });
+}
+
+function toggleResourceEditMode(event) {
+  event?.stopPropagation();
+  uiState.isResourceEditMode = !uiState.isResourceEditMode;
+  els.toggleResourceEdit?.setAttribute("aria-pressed", String(uiState.isResourceEditMode));
+  renderResources();
 }
 
 function toggleEditMode(event) {
@@ -478,60 +630,33 @@ function createTodoItem(todo) {
 async function addTodo() {
   const text = els.todoInput.value.trim();
   if (!text) return;
-  try {
-    const created = await fetchJson(`${API_BASE}/todos`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, done: false })
-    });
-    state.todos = [created, ...state.todos];
-  } catch (error) {
-    const list = storage.getTodos();
-    list.unshift({
-      id: `todo_${Date.now()}`,
-      text,
-      done: false
-    });
-    storage.setTodos(list);
-    state.todos = list;
-  }
+  const list = storage.getTodos();
+  list.unshift({
+    id: `todo_${Date.now()}`,
+    text,
+    done: false
+  });
+  storage.setTodos(list);
+  state.todos = list;
   els.todoInput.value = "";
   renderTodos(state.todos);
 }
 
 async function toggleTodo(todoId, nextDone) {
-  try {
-    const updated = await fetchJson(`${API_BASE}/todos/${todoId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done: nextDone })
-    });
-    state.todos = state.todos.map((todo) => (todo.id === todoId ? updated : todo));
-    renderTodos(state.todos);
-    return;
-  } catch (error) {
-    const list = storage.getTodos();
-    const target = list.find((todo) => todo.id === todoId);
-    if (!target) return;
-    target.done = nextDone;
-    storage.setTodos(list);
-    state.todos = list;
-    renderTodos(state.todos);
-  }
+  const list = storage.getTodos();
+  const target = list.find((todo) => todo.id === todoId);
+  if (!target) return;
+  target.done = nextDone;
+  storage.setTodos(list);
+  state.todos = list;
+  renderTodos(state.todos);
 }
 
 async function deleteTodo(todoId) {
-  try {
-    await fetchJson(`${API_BASE}/todos/${todoId}`, { method: "DELETE" });
-    state.todos = state.todos.filter((todo) => todo.id !== todoId);
-    renderTodos(state.todos);
-    return;
-  } catch (error) {
-    const list = storage.getTodos().filter((todo) => todo.id !== todoId);
-    storage.setTodos(list);
-    state.todos = list;
-    renderTodos(state.todos);
-  }
+  const list = storage.getTodos().filter((todo) => todo.id !== todoId);
+  storage.setTodos(list);
+  state.todos = list;
+  renderTodos(state.todos);
 }
 
 function renderLaterList(list) {
@@ -583,50 +708,30 @@ async function addToLaterList(item) {
     syncResourceCardLaterButton(item.id, true);
     return true;
   }
-  try {
-    const created = await fetchJson(`${API_BASE}/later`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resource_id: item.id, title: item.title })
-    });
-    state.laterItems = [created, ...state.laterItems];
-    renderLaterList(state.laterItems);
-    syncResourceCardLaterButton(item.id, true);
-    return true;
-  } catch (error) {
-    const list = storage.getLaterList();
-    if (list.some((entry) => entry.id === item.id)) {
-      syncResourceCardLaterButton(item.id, true);
-      return true;
-    }
-    list.unshift({
-      id: item.id,
-      title: item.title,
-      url: item.url || ""
-    });
-    storage.setLaterList(list);
-    state.laterItems = list;
-    renderLaterList(state.laterItems);
+  const list = storage.getLaterList();
+  if (list.some((entry) => entry.id === item.id)) {
     syncResourceCardLaterButton(item.id, true);
     return true;
   }
+  list.unshift({
+    id: item.id,
+    title: item.title,
+    url: item.url || ""
+  });
+  storage.setLaterList(list);
+  state.laterItems = list;
+  renderLaterList(state.laterItems);
+  syncResourceCardLaterButton(item.id, true);
+  return true;
 }
 
 async function removeFromLaterList(itemId) {
-  try {
-    await fetchJson(`${API_BASE}/later/${itemId}`, { method: "DELETE" });
-    state.laterItems = state.laterItems.filter((item) => (item.resource_id || item.id) !== itemId);
-    renderLaterList(state.laterItems);
-    syncResourceCardLaterButton(itemId, false);
-    return true;
-  } catch (error) {
-    const list = storage.getLaterList().filter((item) => item.id !== itemId);
-    storage.setLaterList(list);
-    state.laterItems = list;
-    renderLaterList(state.laterItems);
-    syncResourceCardLaterButton(itemId, false);
-    return true;
-  }
+  const list = storage.getLaterList().filter((item) => item.id !== itemId);
+  storage.setLaterList(list);
+  state.laterItems = list;
+  renderLaterList(state.laterItems);
+  syncResourceCardLaterButton(itemId, false);
+  return true;
 }
 
 async function loadTodos() {
@@ -676,38 +781,118 @@ function closeUploadModal() {
   els.uploadPlatform.value = "";
 }
 
-function saveUpload() {
+async function saveUpload(event) {
+  if (event) event.preventDefault();
   const title = els.uploadTitle.value.trim();
   const url = els.uploadUrl.value.trim();
-  if (!title || !url || !state.activeResourceCategory) return;
+  const category = ensureActiveResourceCategory();
+  if (!title || !url || !category) return;
   if (uiState.uploadMode === "apply") {
     closeUploadModal();
     alert("管理员已收到你的新建栏目申请，请耐心等待");
     return;
   }
-  const desc = els.uploadDesc.value.trim();
-  const platform = els.uploadPlatform.value.trim();
-  const tags = els.uploadTags.value
-    .split(/[，,]/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  const description = els.uploadDesc.value.trim();
+  const tagsStr = els.uploadTags.value.trim();
 
-  const uploads = storage.getUploads();
-  const list = uploads[state.activeResourceCategory] || [];
-  list.unshift({
-    id: `u_${Date.now()}`,
-    title,
-    url,
-    description: desc,
-    tags,
-    platform,
-    createdAt: Date.now(),
-    comments: []
-  });
-  uploads[state.activeResourceCategory] = list;
-  storage.setUploads(uploads);
+  const tags = tagsStr ? tagsStr.split(/,|，/).map(t => t.trim()).filter(Boolean) : []; 
+
+ 
+  const uploadsMap = storage.getUploads();
+  if (!uploadsMap[category.id]) {
+    uploadsMap[category.id] = [];
+  }
+  
+  const newResource = {
+    id: `local_res_${Date.now()}`, 
+    title: title,
+    url: url,
+    description: description || null,
+    tags: tags,
+    client_id: getClientId()
+  };
+  
+  uploadsMap[category.id].unshift(newResource);
+  storage.setUploads(uploadsMap);
+
   closeUploadModal();
-  renderResources();
+  showResourceView();
+  updateActiveNav();
+  await renderResources();
+}
+
+async function renameResource(item, nextTitle) {
+  const title = nextTitle.trim();
+  const category = ensureActiveResourceCategory();
+  if (!category) {
+    await renderResources();
+    return;
+  }
+  if (!title || title === item.title) {
+    await renderResources();
+    return;
+  }
+
+  if (String(item.id).startsWith("local_")) {
+    const uploadsMap = storage.getUploads();
+    if (uploadsMap[category.id]) {
+      const target = uploadsMap[category.id].find(r => r.id === item.id);
+      if (target) {
+        target.title = title;
+        storage.setUploads(uploadsMap);
+      }
+    }
+    await renderResources();
+    return;
+  }
+
+  try {
+    await fetchJson(`${API_BASE}/subjects/${category.id}/resources/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title })
+    });
+    delete state.resourceCache[category.id];
+    showResourceView();
+    updateActiveNav();
+    await renderResources();
+  } catch (error) {
+    alert(`编辑失败：${error.message}`);
+    await renderResources();
+  }
+}
+
+async function deleteResource(item) {
+  if (!confirm(`确定删除「${item.title}」？`)) return;
+  const category = ensureActiveResourceCategory();
+  if (!category) return;
+
+  if (String(item.id).startsWith("local_")) {
+      const uploadsMap = storage.getUploads();
+      if (uploadsMap[category.id]) {
+        uploadsMap[category.id] = uploadsMap[category.id].filter(r => r.id !== item.id);
+        storage.setUploads(uploadsMap);
+      }
+      
+      state.laterItems = state.laterItems.filter((later) => (later.resource_id || later.id) !== item.id);
+      renderLaterList(state.laterItems);
+      await renderResources();
+      return;
+    }
+
+  try {
+    await fetchJson(`${API_BASE}/subjects/${category.id}/resources/${item.id}`, {
+      method: "DELETE"
+    });
+    delete state.resourceCache[category.id];
+    state.laterItems = state.laterItems.filter((later) => (later.resource_id || later.id) !== item.id);
+    renderLaterList(state.laterItems);
+    showResourceView();
+    updateActiveNav();
+    await renderResources();
+  } catch (error) {
+    alert(`删除失败：${error.message}`);
+  }
 }
 
 function createResourceCard(item) {
@@ -716,9 +901,18 @@ function createResourceCard(item) {
   card.dataset.resourceId = String(item.id);
   const tags = [...(item.tags || [])];
   if (item.platform && !tags.includes(item.platform)) tags.push(item.platform);
+  const canEdit = uiState.isResourceEditMode && item.client_id === getClientId();
+  const titleHtml = canEdit
+    ? `<input class="resource-rename-input" type="text" value="${item.title.replace(/"/g, "&quot;")}" aria-label="编辑资源标题" />`
+    : `<h3>${item.title}</h3>`;
+  const editActionsHtml = canEdit
+    ? `<button class="resource-delete-btn" type="button" aria-label="删除资源">×</button>`
+    : "";
+
   card.innerHTML = `
     <div class="card-top">
-      <h3>${item.title}</h3>
+      ${titleHtml}
+      ${editActionsHtml}
       <button class="later-plus add-later-btn add-to-later-btn" type="button" data-action="later" aria-label="加入稍后再学" title="加入稍后再学">+</button>
     </div>
     <div class="tags">${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
@@ -731,6 +925,8 @@ function createResourceCard(item) {
   `;
   const openBtn = card.querySelector(".card-open");
   const laterBtn = card.querySelector("[data-action='later']");
+  const renameInput = card.querySelector(".resource-rename-input");
+  const deleteBtn = card.querySelector(".resource-delete-btn");
   const inLaterList = isInLaterList(item.id);
   setLaterButtonState(laterBtn, inLaterList);
   openBtn.addEventListener("click", () => window.open(item.url, "_blank"));
@@ -741,19 +937,37 @@ function createResourceCard(item) {
     }
     await addToLaterList(item);
   });
+
+  if (renameInput) {
+    let submitted = false;
+    const submitRename = async () => {
+      if (submitted) return;
+      submitted = true;
+      await renameResource(item, renameInput.value);
+    };
+    renameInput.addEventListener("click", (event) => event.stopPropagation());
+    renameInput.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      await submitRename();
+    });
+    renameInput.addEventListener("blur", async () => {
+      await submitRename();
+    });
+  }
+
+  deleteBtn?.addEventListener("click", async (event) => {
+    event.stopPropagation();
+    await deleteResource(item);
+  });
   return card;
 }
 
 async function deleteSiteById(siteId, title) {
   if (!confirm(`确定删除「${title}」？`)) return;
-  try {
-    await fetchJson(`${API_BASE}/sites/${siteId}`, { method: "DELETE" });
-    state.sites = state.sites.filter((site) => site.id !== siteId);
-  } catch (error) {
-    const customSites = storage.getCustomSites();
-    storage.setCustomSites(customSites.filter(s => s.id !== siteId));
-    state.sites = state.sites.filter((site) => site.id !== siteId);
-  }
+  const customSites = storage.getCustomSites();
+  storage.setCustomSites(customSites.filter((s) => s.id !== siteId));
+  state.sites = state.sites.filter((site) => site.id !== siteId);
   renderSites();
 }
 
@@ -930,9 +1144,16 @@ async function fetchSiteData(fallbackSites) {
 
 function applyResourceFilters(list) {
   const keyword = els.searchInput.value.trim();
-  let result = keyword
-    ? list.filter((item) => item.title.includes(keyword) || (item.description || "").includes(keyword))
-    : [...list];
+  let result = [...list];
+
+  if (keyword) {
+    const searchTerms = keyword.split(/\s+/).filter(Boolean);
+    result = list.filter((item) => {
+      const targetText = (item.title + " " + (item.description || "")).toLowerCase();
+      return searchTerms.every(term => targetText.includes(term.toLowerCase()));
+    });
+  }
+
   result.sort((a, b) => getResourceHeatFromItem(b) - getResourceHeatFromItem(a));
   return result;
 }
@@ -1102,50 +1323,42 @@ function closeAddSiteModal() {
   els.siteDesc.value = "";
 }
 
-async function saveCustomSite() {
+async function saveCustomSite(event) {
+  if (event) event.preventDefault();
   const title = els.siteTitle.value.trim();
   const url = els.siteUrl.value.trim();
   if (!title || !url) return;
   const desc = els.siteDesc.value.trim();
   const defaultSection = state.siteSections.find((section) => section.id === "default");
   const sectionId = defaultSection ? defaultSection.id : "default";
-  try {
-    const created = await fetchJson(`${API_BASE}/sites`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, description: desc, section_id: sectionId })
-    });
-    state.sites.push(created);
-  } catch (error) {
-    // localStorage 敦网离线模式下保存到 localStorage
-    const customSites = storage.getCustomSites();
-    const newSite = {
-      id: "local-" + Date.now(),
-      title,
-      url,
-      description: desc,
-      section_id: sectionId
-    };
-    customSites.push(newSite);
-    storage.setCustomSites(customSites);
-    state.sites.push(newSite);
-  }
+  const customSites = storage.getCustomSites();
+  const newSite = {
+    id: "local-" + Date.now(),
+    title,
+    url,
+    description: desc,
+    section_id: sectionId
+  };
+  customSites.push(newSite);
+  storage.setCustomSites(customSites);
+  state.sites.push(newSite);
   closeAddSiteModal();
   renderSites();
 }
 
 async function assignSite(siteId, sectionId) {
-  try {
-    const updated = await fetchJson(`${API_BASE}/sites/${siteId}/assign`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ section_id: sectionId })
-    });
-    state.sites = state.sites.map((site) => (site.id === siteId ? updated : site));
-    renderSites();
-  } catch (error) {
-    alert("移动网站失败，请稍后重试。");
+  state.sites = state.sites.map((site) => (
+    site.id === siteId ? { ...site, section_id: sectionId } : site
+  ));
+
+  const customSites = storage.getCustomSites();
+  const target = customSites.find((site) => site.id === siteId);
+  if (target) {
+    target.section_id = sectionId;
+    storage.setCustomSites(customSites);
   }
+
+  renderSites();
 }
 
 function bindEvents() {
@@ -1165,9 +1378,56 @@ function bindEvents() {
   els.todoInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") addTodo();
   });
-  els.openApply.addEventListener("click", () => openUploadModal("apply"));
+
+  els.openFeedback?.addEventListener("click", () => {
+    els.feedbackTitle.textContent = "意见反馈";
+    els.feedbackFormGroup.style.display = "flex";
+    els.feedbackActions.style.display = "flex";
+    els.feedbackText.value = "";
+    els.feedbackModal.classList.add("show");
+    const oldMsg = document.getElementById("feedback-success-msg");
+    if (oldMsg) oldMsg.remove();
+  });
+  els.cancelFeedback?.addEventListener("click", () => {
+    els.feedbackModal.classList.remove("show");
+  });
+  els.submitFeedback?.addEventListener("click", async() => {
+    const text = els.feedbackText.value.trim();
+    if (!text) {
+      alert("反馈内容不能为空");
+      return;
+    }
+
+    try {
+      await fetchJson(`${API_BASE}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text })
+      });
+    } catch (error) {
+      console.error("提交反馈失败，可能是网络问题或处于离线模式", error);
+      
+    }
+    els.feedbackTitle.textContent = "提交成功";
+    els.feedbackFormGroup.style.display = "none";
+    els.feedbackActions.style.display = "none";
+
+    const successMsg = document.createElement("p");
+    successMsg.id = "feedback-success-msg";
+    successMsg.style.color = "var(--primary)";
+    successMsg.style.margin = "20px 0";
+    successMsg.style.textAlign = "center";
+    successMsg.textContent = "您的宝贵反馈我们已收到，感谢您的每一个建议！";
+    els.feedbackTitle.after(successMsg);
+    setTimeout(() => {
+      els.feedbackModal.classList.remove("show");
+    }, 2500);
+  });
+
   els.cancelUpload.addEventListener("click", closeUploadModal);
   els.saveUpload.addEventListener("click", saveUpload);
+  els.openUpload?.addEventListener("click", () => openUploadModal("upload"));
+  els.toggleResourceEdit?.addEventListener("click", toggleResourceEditMode);
   els.pomodoroToggle.addEventListener("click", (event) => {
     event.stopPropagation();
     togglePomodoro();
@@ -1240,6 +1500,15 @@ function bindEvents() {
     if (!clickedInsideFloatingPanel) {
       closeAllFloatingPanels();
     }
+
+    els.btnExport?.addEventListener("click", exportUserData);
+  
+    els.btnImport?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      els.importFileInput?.click();
+    });
+    
+    els.importFileInput?.addEventListener("change", importUserData);
   });
   document.addEventListener("keydown", (event) => {
     if (event.isComposing || event.defaultPrevented) return;

@@ -10,7 +10,7 @@
 <body>
   <div class="app-shell">
   <header class="site-header">
-    <div class="brand" id="brand-home" aria-label="品牌主页" role="button" tabindex="0">
+    <div class="brand" id="brand-home" aria-label="品牌主页" role="button" tabindex="0" data-tooltip="返回主页" data-tooltip-pos="bottom">
       <div class="brand-mark" role="img" aria-label="品牌标识">Z</div>
       <div class="brand-meta">
         <h1>拾光伴学</h1>
@@ -20,13 +20,14 @@
       <input id="search-input" type="search" placeholder="输入资料的关键词..." />
     </div>
     <div class="header-quick-actions" id="header-quick-actions">
-      <button class="header-action-btn" id="btn-todo" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="待办事项">
+      <button class="header-action-btn" id="btn-todo" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="待办事项" data-tooltip="待办事项" data-tooltip-pos="bottom">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9.6 16.8 5.8 13l1.4-1.4 2.4 2.4 6.6-6.6 1.4 1.4-8 8Z" fill="currentColor"/>
           <path d="M4.5 4h15a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4Zm.5 2v12h14V6H5Z" fill="currentColor"/>
         </svg>
       </button>
-      <button class="header-action-btn" id="btn-study" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="自习室控制">
+      
+      <button class="header-action-btn" id="btn-study" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="自习室控制" data-tooltip="自习室控制" data-tooltip-pos="bottom">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 5.2A1.2 1.2 0 0 1 5.2 4h13.6A1.2 1.2 0 0 1 20 5.2V7h-2V6H6v12h5v2H5.2A1.2 1.2 0 0 1 4 18.8V5.2Z" fill="currentColor"/>
           <path d="M14 10h6v2h-6v-2Zm0 4h6v2h-6v-2Z" fill="currentColor"/>
@@ -52,7 +53,7 @@
       <section class="global-panel" data-panel="study" aria-hidden="true">
         <div class="content-header">
           <div class="section-head-main">
-            <h2>自习室控制</h2>
+            <h2>在线自习室</h2>
           </div>
           <div class="study-panel-main">
             <div class="pomodoro-inline">
@@ -78,7 +79,7 @@
             </div>
           </div>
           <div class="control-group room-tip">
-            <label>给我的一句话</label>
+            <label>给自己的一句话</label>
             <input id="room-quote" type="text" placeholder="保持节奏，别急。" />
           </div>
         </div>
@@ -94,7 +95,7 @@
         <h2>学科资源</h2>
         <ul id="resource-categories" class="nav-list"></ul>
         <div class="nav-actions">
-          <button class="btn ghost" id="open-apply">申请添加</button>
+          <button class="btn ghost" id="open-apply">意见反馈</button>
         </div>
       </section>
     </aside>
@@ -113,6 +114,10 @@
             <div class="title-group">
               <h2 id="resource-title">学科资源</h2>
               <span class="resource-subtitle" id="resource-subtitle">按学科分区浏览当前资源</span>
+            </div>
+            <div class="section-actions">
+              <button class="btn primary" id="open-upload" type="button">上传资源</button>
+              <button class="btn ghost" id="toggle-resource-edit" type="button" aria-pressed="false">编辑资源</button>
             </div>
           </div>
 
@@ -167,7 +172,20 @@
         </button>
         <span class="bottom-hotkey-tag">⌘/Ctrl + J</span>
       </div>
+
+
       <div class="bottom-bar-right" aria-live="polite">
+        <div class="bottom-bar-data-actions" style="display: flex; gap: 8px; margin-right: 12px; padding-right: 12px; border-right: 1px solid var(--border-color);">
+          <button type="button" class="btn-icon-tiny" id="btn-export" data-tooltip="导出备份" aria-label="导出备份" style="background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px; display: flex; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+
+          <button type="button" class="btn-icon-tiny" id="btn-import" data-tooltip="导入备份" aria-label="导入备份" style="background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px; display: flex; position: relative;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </button>
+          <input type="file" id="import-file-input" style="display: none;" accept=".json">
+        </div>
+
         <span class="bottom-status-item">
           <span class="online-pulse" aria-hidden="true"></span>
           <span id="online-count">0</span> 人在线
@@ -199,8 +217,8 @@
         <input id="site-desc" type="text" placeholder="可选" />
       </div>
       <div class="modal-actions">
-        <button class="btn ghost" id="cancel-add-site">取消</button>
-        <button class="btn primary" id="save-add-site">保存</button>
+        <button type="button" class="btn ghost" id="cancel-add-site">取消</button>
+        <button type="button" class="btn primary" id="save-add-site">保存</button>
       </div>
     </div>
   </div>
@@ -229,12 +247,27 @@
         <input id="upload-platform" type="text" placeholder="例如：B站 / 知乎" />
       </div>
       <div class="modal-actions">
-        <button class="btn ghost" id="cancel-upload">取消</button>
-        <button class="btn primary" id="save-upload">保存</button>
+        <button class="btn ghost" id="cancel-upload" type="button">取消</button>
+        <button class="btn primary" id="save-upload" type="button">保存</button>
       </div>
     </div>
   </div>
 
+
+  <div class="modal" id="feedback-modal">
+    <div class="modal-card">
+      <h3 id="feedback-title">意见反馈</h3>
+      <div class="form-group" id="feedback-form-group">
+        <label>告诉我们你的想法或建议</label>
+        <textarea id="feedback-text" rows="4" placeholder="在这里输入文字..."></textarea>
+      </div>
+      <div class="modal-actions" id="feedback-actions">
+        <button class="btn ghost" id="cancel-feedback">取消</button>
+        <button class="btn primary" id="submit-feedback">提交反馈</button>
+      </div>
+    </div>
+  </div>
+  
   <script src="app.js"></script>
 </body>
 </html>
