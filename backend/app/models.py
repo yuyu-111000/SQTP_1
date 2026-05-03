@@ -4,6 +4,28 @@ from sqlalchemy.orm import relationship
 from .db import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    password_hash = Column(String, nullable=False)
+    is_admin = Column(Integer, nullable=False, default=0)
+    created_at = Column(Integer, nullable=True)
+
+
+class AdminApplication(Base):
+    __tablename__ = "admin_applications"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    reason = Column(Text, nullable=True)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending / approved / rejected
+    created_at = Column(Integer, nullable=True)
+
+    user = relationship("User")
+
+
 class Subject(Base):
     __tablename__ = "subjects"
 
@@ -22,14 +44,20 @@ class Resource(Base):
     title = Column(String, nullable=False)
     url = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    detailed_description = Column(Text, nullable=True)
     platform = Column(String, nullable=True)
     tags = Column(Text, nullable=True)
     created_at = Column(Integer, nullable=True)
     like_count = Column(Integer, nullable=False, default=0)
     comment_count = Column(Integer, nullable=False, default=0)
+    status = Column(String, nullable=False, default="approved", index=True)  # approved / pending / rejected
+    visibility = Column(String, nullable=False, default="public")  # public / private
+    og_image = Column(String, nullable=True)
+    submitter_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
 
     subject = relationship("Subject", back_populates="resources")
     comments = relationship("Comment", back_populates="resource", cascade="all, delete-orphan")
+    submitter = relationship("User")
 
     client_id = Column(String, index=True, nullable=False, default="default")
 
@@ -95,6 +123,18 @@ class StudyRoomStats(Base):
     current_users = Column(Integer, nullable=False, default=0)
     peak_today = Column(Integer, nullable=False, default=0)
     updated_at = Column(Integer, nullable=True)
+
+
+class StudyRoomSession(Base):
+    __tablename__ = "study_room_sessions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    username = Column(String, nullable=False)
+    last_heartbeat = Column(Integer, nullable=False)
+
+    user = relationship("User")
+
 
 class Feedback(Base):
     __tablename__ = "feedback"

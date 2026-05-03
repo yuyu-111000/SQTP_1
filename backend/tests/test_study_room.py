@@ -15,7 +15,10 @@ def test_get_stats_default():
     client = TestClient(app)
     response = client.get("/study-room/online")
     assert response.status_code == 200
-    assert response.json() == {"currentUsers": 0, "peakToday": 0}
+    data = response.json()
+    assert data["currentUsers"] == 0
+    assert data["peakToday"] == 0
+    assert "online_users" in data
 
 
 def test_update_stats():
@@ -23,8 +26,12 @@ def test_update_stats():
     client = TestClient(app)
     response = client.post("/study-room/online", json={"currentUsers": 5})
     assert response.status_code == 200
-    assert response.json() == {"currentUsers": 5, "peakToday": 5}
+    data = response.json()
+    assert data["currentUsers"] == 5
+    assert data["peakToday"] == 5
 
     response = client.post("/study-room/online", json={"currentUsers": 3})
     assert response.status_code == 200
-    assert response.json() == {"currentUsers": 3, "peakToday": 5}
+    data = response.json()
+    assert data["currentUsers"] == 3
+    assert data["peakToday"] == 5

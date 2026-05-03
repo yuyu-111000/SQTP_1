@@ -2,8 +2,9 @@ import json
 import time
 from pathlib import Path
 
+from .auth import hash_password
 from .db import SessionLocal, Base, engine
-from .models import Resource, Site, SiteSection, Subject
+from .models import Resource, Site, SiteSection, Subject, User
 
 DEFAULT_SECTION_ID = "default"
 
@@ -77,11 +78,26 @@ def seed_sites(db, payload: dict) -> bool:
     return True
 
 
+def seed_admin(db):
+    if db.query(User).filter(User.username == "admin").first():
+        return
+    admin = User(
+        id="u_admin",
+        username="admin",
+        password_hash=hash_password("admin123"),
+        is_admin=1,
+        created_at=int(time.time()),
+    )
+    db.add(admin)
+    db.commit()
+
+
 def run_seed():
     Base.metadata.create_all(bind=engine)
     payload = load_source_data()
     db = SessionLocal()
     try:
+        seed_admin(db)
         seed_subjects_and_resources(db, payload)
         seed_sites(db, payload)
     finally:

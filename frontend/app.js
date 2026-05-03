@@ -32,6 +32,100 @@ const state = {
 };
 
 
+// ── Auth ─────────────────────────────────────────
+
+function getToken() {
+  return localStorage.getItem("authToken");
+}
+
+function setToken(token) {
+  localStorage.setItem("authToken", token);
+}
+
+function clearToken() {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("authUser");
+}
+
+function getAuthUser() {
+  try {
+    const raw = localStorage.getItem("authUser");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setAuthUser(user) {
+  localStorage.setItem("authUser", JSON.stringify(user));
+}
+
+function isLoggedIn() {
+  return !!getToken();
+}
+
+function isAdmin() {
+  const user = getAuthUser();
+  return user && user.is_admin;
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1];
+    return JSON.parse(atob(base64));
+  } catch { return null; }
+}
+
+let _lastAuthState = null;
+
+function updateAuthUI() {
+  const area = document.getElementById('header-auth-area');
+  if (!area) return;
+  const loggedIn = isLoggedIn();
+  const admin = isAdmin();
+  const user = getAuthUser();
+
+  // Skip if auth state hasn't changed (prevents redundant DOM mutations)
+  const stateKey = `${loggedIn}-${admin}-${user?.username || ''}`;
+  if (stateKey === _lastAuthState) return;
+  _lastAuthState = stateKey;
+
+  if (loggedIn) {
+    let html = '';
+    if (admin) html += '<span class="header-admin-badge">管理员</span>';
+    html += `<span class="header-username">${user.username}</span>`;
+    if (admin) {
+      html += `<button class="btn ghost btn-sm" id="btn-admin-panel" title="管理面板"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>`;
+    }
+    html += `<button class="btn ghost btn-sm" id="btn-logout" title="退出登录"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>`;
+    area.innerHTML = html;
+
+    document.getElementById('btn-admin-panel')?.addEventListener('click', (e) => { e.stopPropagation(); openAdminPanel(); });
+    document.getElementById('btn-logout')?.addEventListener('click', logout);
+  } else {
+    area.innerHTML = '<button class="btn ghost btn-sm" id="btn-show-login">登录</button>';
+    document.getElementById('btn-show-login')?.addEventListener('click', () => {
+      document.getElementById('auth-modal').classList.add('show');
+      resetUserPanel();
+    });
+  }
+
+  // Toggle upload + edit buttons
+  const displayVal = loggedIn ? '' : 'none';
+  const ids = ['open-upload', 'toggle-resource-edit', 'toggle-edit-mode', 'open-add-site'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.style.display !== displayVal) el.style.display = displayVal;
+  });
+}
+
+function logout() {
+  clearToken();
+  updateAuthUI();
+  document.getElementById('auth-modal').classList.remove('show');
+}
+
+// ── END Auth ─────────────────────────────────────
+
+
 function getClientId() {
   let clientId = localStorage.getItem("clientId");
   if (!clientId) {
@@ -43,17 +137,35 @@ function getClientId() {
 
 async function fetchJson(url, options = {}) {
   const headers = options.headers || {};
-  headers["X-Client-ID"] = getClientId(); 
+  headers["X-Client-ID"] = getClientId();
+
+  const token = getToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   const res = await fetch(url, { ...options, headers });
   if (!res.ok) {
     let detail = "";
     try {
-      detail = await res.text();
+      const text = await res.text();
+      // Try to extract detail from JSON error response
+      try {
+        const parsed = JSON.parse(text);
+        detail = parsed.detail || text;
+      } catch {
+        detail = text;
+      }
     } catch (error) {
-      detail = "";
+      detail = `请求失败 (${res.status})`;
     }
-    throw new Error(`Request failed: ${res.status}${detail ? ` - ${detail}` : ""}`);
+    // 401 with token = session expired. Clear token but don't modify UI here —
+    // let the caller decide how to handle it (avoids race conditions in loadData)
+    if (res.status === 401 && token) {
+      clearToken();
+      throw new Error("AUTH_EXPIRED");
+    }
+    throw new Error(detail || `请求失败 (${res.status})`);
   }
   return res.json();
 }
@@ -81,7 +193,6 @@ const els = {
   timeSeconds: document.getElementById("time-seconds"),
   addSiteModal: document.getElementById("add-site-modal"),
   openAddSite: document.getElementById("open-add-site"),
-  cancelAddSite: document.getElementById("cancel-add-site"),
   saveAddSite: document.getElementById("save-add-site"),
   siteTitle: document.getElementById("site-title"),
   siteUrl: document.getElementById("site-url"),
@@ -100,7 +211,6 @@ const els = {
   uploadModal: document.getElementById("upload-modal"),
   uploadModalTitle: document.getElementById("upload-modal-title"),
   uploadTitleLabel: document.getElementById("upload-title-label"),
-  cancelUpload: document.getElementById("cancel-upload"),
   saveUpload: document.getElementById("save-upload"),
   uploadTitle: document.getElementById("upload-title"),
   uploadUrl: document.getElementById("upload-url"),
@@ -108,15 +218,12 @@ const els = {
   uploadTags: document.getElementById("upload-tags"),
   uploadPlatform: document.getElementById("upload-platform"),
   todoInput: document.getElementById("todo-input"),
-  addTodo: document.getElementById("add-todo"),
   todoList: document.getElementById("todo-list"),
   laterList: document.getElementById("later-list"),
   pomodoroTimeDisplay: document.getElementById("pomodoro-time-display"),
   toggleEditMode: document.getElementById("toggle-edit-mode"),
-  openFeedback: document.getElementById("open-feedback"),
   feedbackModal: document.getElementById("feedback-modal"),
   feedbackText: document.getElementById("feedback-text"),
-  cancelFeedback: document.getElementById("cancel-feedback"),
   submitFeedback: document.getElementById("submit-feedback"),
   feedbackTitle: document.getElementById("feedback-title"),
   feedbackFormGroup: document.getElementById("feedback-form-group"),
@@ -250,33 +357,55 @@ function importUserData(event) {
   reader.readAsText(file);
 }
 
+let loadDataRunning = false;
+
 async function loadData() {
-  let localData = {};
-  try {
-    localData = await fetchJson(dataUrl);
-  } catch (error) {
-    localData = {};
-  }
+  if (loadDataRunning) return;
+  loadDataRunning = true;
+
+  let authExpired = false;
+  const safeFetch = async (url, opts = {}) => {
+    try {
+      return await fetchJson(url, opts);
+    } catch (e) {
+      if (e.message === 'AUTH_EXPIRED') authExpired = true;
+      throw e;
+    }
+  };
 
   try {
-    const subjects = await fetchJson(`${API_BASE}/subjects`);
-    state.resourceData = subjects.length ? subjects : (localData.studyResourceCategories || []);
-  } catch (error) {
-    state.resourceData = localData.studyResourceCategories || [];
-  }
+    let localData = {};
+    try {
+      localData = await safeFetch(dataUrl);
+    } catch (error) {
+      localData = {};
+    }
 
-  await fetchSiteData(localData.sites || []);
-  state.pomodoro.workSeconds = (localData.studyRoom?.pomodoroConfig?.workDuration || 25) * 60;
-  state.pomodoro.remaining = state.pomodoro.workSeconds;
-  initTimePicker();
-  if (els.roomQuote) {
-    els.roomQuote.value = storage.getRoomQuote();
+    try {
+      const subjects = await safeFetch(`${API_BASE}/subjects`);
+      state.resourceData = subjects.length ? subjects : (localData.studyResourceCategories || []);
+    } catch (error) {
+      state.resourceData = localData.studyResourceCategories || [];
+    }
+
+    await fetchSiteData(localData.sites || []);
+    state.pomodoro.workSeconds = (localData.studyRoom?.pomodoroConfig?.workDuration || 25) * 60;
+    state.pomodoro.remaining = state.pomodoro.workSeconds;
+    initTimePicker();
+    if (els.roomQuote) {
+      els.roomQuote.value = storage.getRoomQuote();
+    }
+    updatePomodoroView();
+    await loadLaterItems();
+    initCategories();
+    startOnlineCountPolling({ immediate: true });
+    await loadTodos();
+  } finally {
+    loadDataRunning = false;
+    if (authExpired) {
+      updateAuthUI();
+    }
   }
-  updatePomodoroView();
-  await loadLaterItems();
-  initCategories();
-  startOnlineCountPolling({ immediate: true });
-  await loadTodos();
 }
 
 function syncHeaderPanelState() {
@@ -762,12 +891,12 @@ function openUploadModal(mode = "upload") {
   uiState.uploadMode = mode;
   if (mode === "apply") {
     els.uploadModalTitle.textContent = "新建栏目申请";
-    els.uploadTitleLabel.textContent = "你要为该栏目上传的第一个内容";
     els.saveUpload.textContent = "保存并提交申请";
+    document.getElementById("upload-visibility-toggle").style.display = "none";
   } else {
     els.uploadModalTitle.textContent = "上传学习内容";
-    els.uploadTitleLabel.textContent = "标题";
     els.saveUpload.textContent = "保存";
+    document.getElementById("upload-visibility-toggle").style.display = "";
   }
   els.uploadModal.classList.add("show");
 }
@@ -777,8 +906,28 @@ function closeUploadModal() {
   els.uploadTitle.value = "";
   els.uploadUrl.value = "";
   els.uploadDesc.value = "";
+  const detDesc = document.getElementById("upload-detailed-desc");
+  if (detDesc) detDesc.value = "";
   els.uploadTags.value = "";
   els.uploadPlatform.value = "";
+  document.getElementById("url-extract-status").textContent = "";
+}
+
+async function extractUrlMeta(url) {
+  const statusEl = document.getElementById("url-extract-status");
+  statusEl.textContent = "正在提取网页信息...";
+  try {
+    const data = await fetchJson(`${API_BASE}/subjects/extract-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (data.title) els.uploadTitle.value = data.title;
+    if (data.description) els.uploadDesc.value = data.description;
+    statusEl.textContent = "信息已自动填充，可手动修改";
+  } catch (e) {
+    statusEl.textContent = "无法自动提取，请手动填写";
+  }
 }
 
 async function saveUpload(event) {
@@ -793,27 +942,57 @@ async function saveUpload(event) {
     return;
   }
   const description = els.uploadDesc.value.trim();
+  const detailedDescEl = document.getElementById("upload-detailed-desc");
+  const detailedDescription = detailedDescEl ? detailedDescEl.value.trim() : "";
   const tagsStr = els.uploadTags.value.trim();
+  const platform = els.uploadPlatform.value.trim();
 
-  const tags = tagsStr ? tagsStr.split(/,|，/).map(t => t.trim()).filter(Boolean) : []; 
+  const tags = tagsStr ? tagsStr.split(/,|，/).map(t => t.trim()).filter(Boolean) : [];
 
- 
-  const uploadsMap = storage.getUploads();
-  if (!uploadsMap[category.id]) {
-    uploadsMap[category.id] = [];
+  const visibilityRadio = document.querySelector('input[name="upload-visibility"]:checked');
+  const visibility = visibilityRadio ? visibilityRadio.value : "public";
+
+  // If logged in, submit via API
+  if (isLoggedIn()) {
+    try {
+      await fetchJson(`${API_BASE}/subjects/${category.id}/resources`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          url,
+          description: description || null,
+          detailed_description: detailedDescription || null,
+          tags: tags.join(","),
+          platform: platform || null,
+          visibility,
+        }),
+      });
+    } catch (e) {
+      alert("上传失败: " + e.message);
+      return;
+    }
+  } else {
+    // Fallback to localStorage for non-logged-in users
+    const uploadsMap = storage.getUploads();
+    if (!uploadsMap[category.id]) {
+      uploadsMap[category.id] = [];
+    }
+    const newResource = {
+      id: `local_res_${Date.now()}`,
+      title: title,
+      url: url,
+      description: description || null,
+      detailed_description: detailedDescription || null,
+      tags: tags,
+      platform: platform || null,
+      client_id: getClientId(),
+      status: "approved",
+      visibility,
+    };
+    uploadsMap[category.id].unshift(newResource);
+    storage.setUploads(uploadsMap);
   }
-  
-  const newResource = {
-    id: `local_res_${Date.now()}`, 
-    title: title,
-    url: url,
-    description: description || null,
-    tags: tags,
-    client_id: getClientId()
-  };
-  
-  uploadsMap[category.id].unshift(newResource);
-  storage.setUploads(uploadsMap);
 
   closeUploadModal();
   showResourceView();
@@ -901,10 +1080,25 @@ function createResourceCard(item) {
   card.dataset.resourceId = String(item.id);
   const tags = [...(item.tags || [])];
   if (item.platform && !tags.includes(item.platform)) tags.push(item.platform);
-  const canEdit = uiState.isResourceEditMode && item.client_id === getClientId();
+
+  // Status badge
+  let badgeHtml = "";
+  if (item.status === "pending") {
+    badgeHtml = '<span class="resource-badge pending">审核中</span>';
+  } else if (item.status === "rejected") {
+    badgeHtml = '<span class="resource-badge rejected">已拒绝</span>';
+  } else if (item.visibility === "private") {
+    badgeHtml = '<span class="resource-badge private">私有</span>';
+  }
+
+  const authUser = getAuthUser();
+  const canEdit = uiState.isResourceEditMode && (
+    item.submitter_id === authUser?.id ||
+    (isAdmin() && item.client_id === "default")
+  );
   const titleHtml = canEdit
     ? `<input class="resource-rename-input" type="text" value="${item.title.replace(/"/g, "&quot;")}" aria-label="编辑资源标题" />`
-    : `<h3>${item.title}</h3>`;
+    : `<h3>${item.title}${badgeHtml}</h3>`;
   const editActionsHtml = canEdit
     ? `<button class="resource-delete-btn" type="button" aria-label="删除资源">×</button>`
     : "";
@@ -917,7 +1111,7 @@ function createResourceCard(item) {
     </div>
     <div class="tags">${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
     <p class="card-desc">${item.description || ""}</p>
-    <button class="btn primary card-open open-resource-btn" type="button" aria-label="立即前往" title="立即前往" data-tooltip="立即前往">
+    <button class="btn primary card-open open-resource-btn" type="button" aria-label="预览资源" title="预览资源" data-tooltip="预览资源">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M7 17 17 7M9 7h8v8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -929,7 +1123,10 @@ function createResourceCard(item) {
   const deleteBtn = card.querySelector(".resource-delete-btn");
   const inLaterList = isInLaterList(item.id);
   setLaterButtonState(laterBtn, inLaterList);
-  openBtn.addEventListener("click", () => window.open(item.url, "_blank"));
+  openBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openPreviewModal(item);
+  });
   laterBtn.addEventListener("click", async () => {
     if (isInLaterList(item.id)) {
       await removeFromLaterList(item.id);
@@ -1361,6 +1558,307 @@ async function assignSite(siteId, sectionId) {
   renderSites();
 }
 
+// ── Auth UI handlers ─────────────────────────────────
+
+let userAuthMode = 'login'; // 'login' or 'register'
+
+function initAuthUI() {
+  // Tab switching
+  document.querySelectorAll('.auth-modal-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.authTab;
+      document.querySelectorAll('.auth-modal-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.auth-modal-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.querySelector(`[data-auth-panel="${tabName}"]`);
+      if (panel) panel.classList.add('active');
+      document.querySelectorAll('.auth-error').forEach(e => e.textContent = '');
+      // Reset user panel to login mode when switching
+      resetUserPanel();
+    });
+  });
+
+  // User panel: unified login-then-register flow
+  document.getElementById('user-auth-submit').addEventListener('click', async () => {
+    const username = document.getElementById('user-username').value.trim();
+    const password = document.getElementById('user-password').value;
+    const errEl = document.getElementById('user-auth-error');
+    errEl.textContent = '';
+
+    if (!username || !password) { errEl.textContent = '请填写用户名和密码'; return; }
+
+    if (userAuthMode === 'register') {
+      // Register flow
+      const confirm = document.getElementById('user-password-confirm').value;
+      if (password !== confirm) { errEl.textContent = '两次密码不一致'; return; }
+      try {
+        const data = await fetchJson(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        setToken(data.access_token);
+        setAuthUser(data.user);
+        onLoginSuccess();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+      return;
+    }
+
+    // Login flow: try login first
+    try {
+      const data = await fetchJson(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      setToken(data.access_token);
+      setAuthUser(data.user);
+      onLoginSuccess();
+    } catch (e) {
+      const msg = e.message || '';
+      if (msg.includes('用户不存在') || msg.includes('404')) {
+        // User doesn't exist — offer to register
+        showRegisterMode('账号不存在，输入确认密码即可注册');
+      } else if (msg.includes('密码错误') || msg.includes('401')) {
+        errEl.textContent = '密码错误，请重试';
+      } else {
+        errEl.textContent = msg;
+      }
+    }
+  });
+
+  // Admin login
+  document.getElementById('admin-auth-submit').addEventListener('click', async () => {
+    const username = document.getElementById('admin-username').value.trim();
+    const password = document.getElementById('admin-password').value;
+    const errEl = document.getElementById('admin-auth-error');
+    if (!username || !password) { errEl.textContent = '请填写管理员账号和密码'; return; }
+    errEl.textContent = '';
+    try {
+      const data = await fetchJson(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      if (!data.user.is_admin) {
+        errEl.textContent = '该账号不是管理员，请使用用户入口';
+        return;
+      }
+      setToken(data.access_token);
+      setAuthUser(data.user);
+      onLoginSuccess();
+    } catch (e) {
+      const msg = e.message || '';
+      if (msg.includes('用户不存在') || msg.includes('404')) {
+        errEl.textContent = '管理员账号不存在';
+      } else if (msg.includes('密码错误') || msg.includes('401')) {
+        errEl.textContent = '管理员密码错误';
+      } else {
+        errEl.textContent = msg;
+      }
+    }
+  });
+
+  // Reset to login mode when username or password changes
+  document.getElementById('user-username').addEventListener('input', resetUserPanel);
+  document.getElementById('user-password').addEventListener('input', resetUserPanel);
+}
+
+function showRegisterMode(hint) {
+  userAuthMode = 'register';
+  document.getElementById('user-confirm-group').style.display = '';
+  document.getElementById('user-auth-submit').textContent = '注册';
+  document.getElementById('user-auth-hint').style.display = '';
+  document.getElementById('user-auth-hint').innerHTML = `${hint} · <a href="#" id="back-to-login" style="color:var(--primary);cursor:pointer">返回登录</a>`;
+  document.getElementById('back-to-login')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    resetUserPanel();
+  });
+}
+
+function resetUserPanel() {
+  userAuthMode = 'login';
+  document.getElementById('user-confirm-group').style.display = 'none';
+  document.getElementById('user-auth-submit').textContent = '登录';
+  document.getElementById('user-auth-hint').style.display = 'none';
+  document.getElementById('user-auth-hint').innerHTML = '';
+  document.getElementById('user-password-confirm').value = '';
+  document.getElementById('user-auth-error').textContent = '';
+}
+
+function onLoginSuccess() {
+  document.getElementById('auth-modal').classList.remove('show');
+  updateAuthUI();
+  loadData();
+}
+
+// ── Preview modal ────────────────────────────────────
+
+function openPreviewModal(item) {
+  // Store url on DOM
+  const jumpBtn = document.getElementById('preview-jump');
+  if (jumpBtn) jumpBtn.dataset.url = item.url;
+
+  document.getElementById('preview-title').textContent = item.title || '';
+  document.getElementById('preview-desc').textContent = item.description || '';
+
+  // Detailed description
+  const detDescEl = document.getElementById('preview-detailed-desc');
+  if (detDescEl) {
+    detDescEl.textContent = item.detailed_description || '暂无详细介绍';
+  }
+
+  // Image
+  const imgEl = document.getElementById('preview-image');
+  const placeholder = document.getElementById('preview-cover-placeholder');
+  if (item.og_image) {
+    imgEl.src = item.og_image;
+    imgEl.style.display = '';
+    if (placeholder) placeholder.style.display = 'none';
+  } else {
+    imgEl.style.display = 'none';
+    if (placeholder) placeholder.style.display = '';
+  }
+
+  // Meta
+  const metaEl = document.getElementById('preview-meta');
+  let metaHtml = '';
+  if (item.platform) metaHtml += `<span>平台：${item.platform}</span>`;
+  if (item.tags && item.tags.length) {
+    metaHtml += '<span>' + item.tags.map(t => `<span class="tag">${t}</span>`).join(' ') + '</span>';
+  }
+  metaEl.innerHTML = metaHtml;
+
+  document.getElementById('preview-modal').classList.add('show');
+}
+
+// ── Admin panel ──────────────────────────────────────
+
+function openAdminPanel() {
+  document.getElementById('admin-panel-modal').classList.add('show');
+  loadAdminReviewList();
+  loadAdminUsersList();
+}
+
+async function loadAdminReviewList() {
+  const listEl = document.getElementById('admin-review-list');
+  listEl.innerHTML = '<p style="font-size:12px">加载中...</p>';
+  try {
+    const items = await fetchJson(`${API_BASE}/admin/pending-resources`);
+    if (!items.length) {
+      listEl.innerHTML = '<p style="font-size:12px;color:var(--text-secondary)">暂无待审批资源</p>';
+      return;
+    }
+    listEl.innerHTML = items.map(item => `
+      <div class="admin-review-item">
+        <div class="review-info">
+          <h4>${item.title}</h4>
+          <p>${item.url}</p>
+          <p style="margin-top:2px">${item.description || ''} | 平台: ${item.platform || '-'} | 提交者: ${item.submitter_id || '-'}</p>
+        </div>
+        <div class="admin-review-actions">
+          <button class="btn primary btn-sm" onclick="reviewResource('${item.id}','approved')">通过</button>
+          <button class="btn ghost btn-sm" onclick="reviewResource('${item.id}','rejected')">拒绝</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p style="font-size:12px;color:#e53e3e">加载失败</p>';
+  }
+}
+
+async function reviewResource(resourceId, status) {
+  try {
+    await fetchJson(`${API_BASE}/admin/resources/${resourceId}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    loadAdminReviewList();
+  } catch (e) {
+    alert('操作失败: ' + e.message);
+  }
+}
+
+async function loadAdminUsersList() {
+  const listEl = document.getElementById('admin-users-list');
+  const appListEl = document.getElementById('admin-applications-list');
+  listEl.innerHTML = '<p style="font-size:12px">加载中...</p>';
+  try {
+    const users = await fetchJson(`${API_BASE}/auth/admin/users`);
+    listEl.innerHTML = users.map(u => `
+      <div class="admin-user-item">
+        <span><strong>${u.username}</strong> ${u.is_admin ? '<span class="resource-badge" style="background:#2b5ecf;color:#fff">管理员</span>' : ''} | 注册: ${u.created_at ? new Date(u.created_at*1000).toLocaleDateString() : '-'}</span>
+        ${!u.is_admin ? `<button class="btn ghost btn-sm" onclick="promoteUser('${u.id}')">提升为管理员</button>` : ''}
+      </div>
+    `).join('');
+
+    // Applications
+    try {
+      const apps = await fetchJson(`${API_BASE}/auth/admin/applications`);
+      appListEl.innerHTML = apps.length ? apps.map(a => `
+        <div class="admin-user-item">
+          <span>${a.username || a.user_id} | 理由: ${a.reason || '-'} | 状态: ${a.status}</span>
+          ${a.status === 'pending' ? `
+            <div style="display:flex;gap:4px">
+              <button class="btn primary btn-sm" onclick="handleApplication('${a.id}','approve')">通过</button>
+              <button class="btn ghost btn-sm" onclick="handleApplication('${a.id}','reject')">拒绝</button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('') : '<p style="font-size:12px;color:var(--text-secondary)">暂无管理员申请</p>';
+    } catch(e) { appListEl.innerHTML = ''; }
+  } catch (e) {
+    listEl.innerHTML = '<p style="font-size:12px;color:#e53e3e">加载失败</p>';
+  }
+}
+
+async function promoteUser(userId) {
+  try {
+    await fetchJson(`${API_BASE}/auth/admin/users/${userId}/promote`, { method: 'POST' });
+    loadAdminUsersList();
+  } catch (e) { alert('操作失败'); }
+}
+
+async function handleApplication(appId, action) {
+  try {
+    await fetchJson(`${API_BASE}/auth/admin/applications/${appId}/${action}`, { method: 'POST' });
+    loadAdminUsersList();
+  } catch (e) { alert('操作失败'); }
+}
+
+async function loadAdminFeedbackList() {
+  const listEl = document.getElementById('admin-feedback-list');
+  listEl.innerHTML = '<p style="font-size:12px">加载中...</p>';
+  try {
+    const items = await fetchJson(`${API_BASE}/feedback`);
+    if (!items.length) {
+      listEl.innerHTML = '<p style="font-size:12px;color:var(--text-secondary)">暂无反馈</p>';
+      return;
+    }
+    listEl.innerHTML = items.map(item => `
+      <div class="admin-review-item">
+        <div class="review-info">
+          <p style="margin:0;line-height:1.6;white-space:pre-wrap">${item.content}</p>
+          <p style="font-size:11px;color:var(--text-secondary);margin-top:4px">${item.created_at ? new Date(item.created_at*1000).toLocaleString() : ''}</p>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = '<p style="font-size:12px;color:#e53e3e">加载失败</p>';
+  }
+}
+
+// ── Init on page load ───────────────────────────────
+
+function initApp() {
+  initAuthUI();
+  updateAuthUI();
+  loadData();
+}
+
 function bindEvents() {
   const drawer = document.getElementById("global-drawer");
   if (!drawer) {
@@ -1372,25 +1870,12 @@ function bindEvents() {
     openAddSiteModal();
   });
   els.toggleEditMode?.addEventListener("click", toggleEditMode);
-  els.cancelAddSite.addEventListener("click", closeAddSiteModal);
   els.saveAddSite.addEventListener("click", saveCustomSite);
   els.addTodo?.addEventListener("click", addTodo);
   els.todoInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") addTodo();
   });
 
-  els.openFeedback?.addEventListener("click", () => {
-    els.feedbackTitle.textContent = "意见反馈";
-    els.feedbackFormGroup.style.display = "flex";
-    els.feedbackActions.style.display = "flex";
-    els.feedbackText.value = "";
-    els.feedbackModal.classList.add("show");
-    const oldMsg = document.getElementById("feedback-success-msg");
-    if (oldMsg) oldMsg.remove();
-  });
-  els.cancelFeedback?.addEventListener("click", () => {
-    els.feedbackModal.classList.remove("show");
-  });
   els.submitFeedback?.addEventListener("click", async() => {
     const text = els.feedbackText.value.trim();
     if (!text) {
@@ -1424,7 +1909,6 @@ function bindEvents() {
     }, 2500);
   });
 
-  els.cancelUpload.addEventListener("click", closeUploadModal);
   els.saveUpload.addEventListener("click", saveUpload);
   els.openUpload?.addEventListener("click", () => openUploadModal("upload"));
   els.toggleResourceEdit?.addEventListener("click", toggleResourceEditMode);
@@ -1500,16 +1984,15 @@ function bindEvents() {
     if (!clickedInsideFloatingPanel) {
       closeAllFloatingPanels();
     }
-
-    els.btnExport?.addEventListener("click", exportUserData);
-  
-    els.btnImport?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      els.importFileInput?.click();
-    });
-    
-    els.importFileInput?.addEventListener("change", importUserData);
   });
+
+  // Export/import — bind once at top level
+  els.btnExport?.addEventListener("click", exportUserData);
+  els.btnImport?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    els.importFileInput?.click();
+  });
+  els.importFileInput?.addEventListener("change", importUserData);
   document.addEventListener("keydown", (event) => {
     if (event.isComposing || event.defaultPrevented) return;
     const target = event.target;
@@ -1542,7 +2025,131 @@ function bindEvents() {
   els.brand?.addEventListener("keydown", handleBrandKeydown);
   syncDesktopLayoutMetrics();
   syncBottomPanelState();
+
+  // ── New event bindings for auth/admin/preview ─────
+
+  // Upload URL paste → auto-extract
+  els.uploadUrl?.addEventListener('input', () => {
+    const url = els.uploadUrl.value.trim();
+    if (url && /^https?:\/\/.+/.test(url)) {
+      extractUrlMeta(url);
+    }
+  });
+
+  // X close buttons on all modals
+  document.querySelectorAll('.modal-close-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const modalId = btn.dataset.close;
+      if (modalId) {
+        document.getElementById(modalId)?.classList.remove('show');
+      } else {
+        btn.closest('.modal')?.classList.remove('show');
+      }
+    });
+  });
+
+  // Preview jump button
+  document.getElementById('preview-jump')?.addEventListener('click', function () {
+    const url = this.dataset.url;
+    if (url) window.open(url, '_blank');
+  });
+
+
+  // Admin tabs
+  document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.adminTab;
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const panel = document.querySelector(`[data-admin-panel="${tabName}"]`);
+      if (panel) panel.classList.add('active');
+      if (tabName === 'review') loadAdminReviewList();
+      if (tabName === 'users') loadAdminUsersList();
+      if (tabName === 'feedback') loadAdminFeedbackList();
+    });
+  });
+
+  // Excel download template
+  document.getElementById('btn-download-template')?.addEventListener('click', async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/admin/template`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'resource_import_template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch(e) { alert('下载失败'); }
+  });
+
+  // Excel upload
+  document.getElementById('admin-excel-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const resultEl = document.getElementById('admin-import-result');
+    resultEl.textContent = '正在导入...';
+    try {
+      const token = getToken();
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/admin/import-excel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.errors && data.errors.length) {
+        resultEl.innerHTML = `<span style="color:#c53030">导入完成，成功 ${data.created} 条，失败 ${data.errors.length} 条</span>`;
+      } else {
+        resultEl.innerHTML = `<span style="color:#2b5ecf">成功导入 ${data.created} 条资源</span>`;
+      }
+    } catch(e) {
+      resultEl.innerHTML = `<span style="color:#e53e3e">导入失败: ${e.message}</span>`;
+    }
+    e.target.value = '';
+  });
+
+  // Feedback button
+  document.getElementById('open-feedback-btn')?.addEventListener('click', () => {
+    els.feedbackTitle.textContent = "意见反馈";
+    els.feedbackFormGroup.style.display = "flex";
+    els.feedbackActions.style.display = "flex";
+    els.feedbackText.value = "";
+    els.feedbackModal.classList.add("show");
+    const oldMsg = document.getElementById("feedback-success-msg");
+    if (oldMsg) oldMsg.remove();
+  });
+
+  // Admin application button
+  document.getElementById('open-admin-apply-btn')?.addEventListener('click', async () => {
+    if (!isLoggedIn()) {
+      alert('请先登录');
+      return;
+    }
+    const reason = prompt('请输入申请管理员的原因：');
+    if (!reason) return;
+    try {
+      await fetchJson(`${API_BASE}/auth/apply-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      alert('申请已提交，请等待管理员审核');
+    } catch(e) { alert('申请失败: ' + e.message); }
+  });
+
+  // Close modals on click outside
+  document.getElementById('preview-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('preview-modal')) {
+      document.getElementById('preview-modal').classList.remove('show');
+    }
+  });
 }
 
-loadData();
+initApp();
 bindEvents();

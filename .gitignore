@@ -363,5 +363,13 @@ MigrationBackup/
 FodyWeavers.xsd
 
 #1SQTP
+venv/
 立项/
 1.zip
+
+# Claude
+CLAUDE.md
+.claude/
+*.db
+backend_data/
+**/__pycache__/

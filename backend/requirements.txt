@@ -4,3 +4,8 @@ sqlalchemy
 pydantic
 pytest
 httpx
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+openpyxl
+playwright

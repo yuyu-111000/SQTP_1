@@ -8,6 +8,47 @@
   <link href="https://fonts.googleapis.com/css2?family=Source+Han+Serif+SC:wght@600&family=Source+Han+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!-- Auth modal -->
+  <div class="modal" id="auth-modal">
+    <div class="modal-card auth-modal-card">
+      <button class="modal-close-btn" data-close="auth-modal">&times;</button>
+      <div class="auth-modal-tabs">
+        <button class="auth-modal-tab active" data-auth-tab="login">用户入口</button>
+        <button class="auth-modal-tab" data-auth-tab="admin-login">管理员入口</button>
+      </div>
+      <div class="auth-modal-panel active" data-auth-panel="login">
+        <div class="form-group">
+          <label>用户名</label>
+          <input id="user-username" type="text" placeholder="输入用户名" />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input id="user-password" type="password" placeholder="输入密码" />
+        </div>
+        <div class="form-group" id="user-confirm-group" style="display:none">
+          <label>确认密码</label>
+          <input id="user-password-confirm" type="password" placeholder="再次输入密码以注册" />
+        </div>
+        <p class="auth-error" id="user-auth-error"></p>
+        <button class="btn primary auth-submit-btn" id="user-auth-submit">登录</button>
+        <p class="auth-hint" id="user-auth-hint" style="display:none"></p>
+      </div>
+      <div class="auth-modal-panel" data-auth-panel="admin-login">
+        <p class="auth-hint">请使用管理员账号登录</p>
+        <div class="form-group">
+          <label>管理员账号</label>
+          <input id="admin-username" type="text" placeholder="输入管理员账号" />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input id="admin-password" type="password" placeholder="输入密码" />
+        </div>
+        <p class="auth-error" id="admin-auth-error"></p>
+        <button class="btn primary auth-submit-btn" id="admin-auth-submit">登录</button>
+      </div>
+    </div>
+  </div>
+
   <div class="app-shell">
   <header class="site-header">
     <div class="brand" id="brand-home" aria-label="品牌主页" role="button" tabindex="0" data-tooltip="返回主页" data-tooltip-pos="bottom">
@@ -26,13 +67,13 @@
           <path d="M4.5 4h15a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4Zm.5 2v12h14V6H5Z" fill="currentColor"/>
         </svg>
       </button>
-      
       <button class="header-action-btn" id="btn-study" type="button" aria-expanded="false" aria-controls="global-drawer" aria-label="自习室控制" data-tooltip="自习室控制" data-tooltip-pos="bottom">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 5.2A1.2 1.2 0 0 1 5.2 4h13.6A1.2 1.2 0 0 1 20 5.2V7h-2V6H6v12h5v2H5.2A1.2 1.2 0 0 1 4 18.8V5.2Z" fill="currentColor"/>
           <path d="M14 10h6v2h-6v-2Zm0 4h6v2h-6v-2Z" fill="currentColor"/>
         </svg>
       </button>
+      <span id="header-auth-area"></span>
     </div>
   </header>
 
@@ -95,7 +136,8 @@
         <h2>学科资源</h2>
         <ul id="resource-categories" class="nav-list"></ul>
         <div class="nav-actions">
-          <button class="btn ghost" id="open-apply">意见反馈</button>
+          <button class="btn ghost" id="open-feedback-btn">意见反馈</button>
+          <button class="btn ghost" id="open-admin-apply-btn">申请管理员</button>
         </div>
       </section>
     </aside>
@@ -203,6 +245,7 @@
 
   <div class="modal" id="add-site-modal">
     <div class="modal-card">
+      <button class="modal-close-btn" data-close="add-site-modal">&times;</button>
       <h3>添加个人常用网站</h3>
       <div class="form-group">
         <label>网站名称</label>
@@ -217,7 +260,6 @@
         <input id="site-desc" type="text" placeholder="可选" />
       </div>
       <div class="modal-actions">
-        <button type="button" class="btn ghost" id="cancel-add-site">取消</button>
         <button type="button" class="btn primary" id="save-add-site">保存</button>
       </div>
     </div>
@@ -225,18 +267,24 @@
 
   <div class="modal" id="upload-modal">
     <div class="modal-card">
+      <button class="modal-close-btn" data-close="upload-modal">&times;</button>
       <h3 id="upload-modal-title">上传学习内容</h3>
       <div class="form-group">
-        <label id="upload-title-label">标题</label>
-        <input id="upload-title" type="text" placeholder="例如：数据结构课程笔记" />
+        <label id="upload-title-label">链接</label>
+        <input id="upload-url" type="url" placeholder="https://（粘贴链接后自动提取信息）" />
+        <span class="url-extract-status" id="url-extract-status"></span>
       </div>
       <div class="form-group">
-        <label>链接</label>
-        <input id="upload-url" type="url" placeholder="https://" />
+        <label>标题</label>
+        <input id="upload-title" type="text" placeholder="例如：数据结构课程笔记" />
       </div>
       <div class="form-group">
         <label>简介</label>
         <input id="upload-desc" type="text" placeholder="一句话描述内容" />
+      </div>
+      <div class="form-group">
+        <label>详细介绍</label>
+        <textarea id="upload-detailed-desc" rows="3" placeholder="对资源内容的详细描述..."></textarea>
       </div>
       <div class="form-group">
         <label>标签（逗号分隔）</label>
@@ -246,8 +294,14 @@
         <label>来源平台</label>
         <input id="upload-platform" type="text" placeholder="例如：B站 / 知乎" />
       </div>
+      <div class="form-group">
+        <label>可见范围</label>
+        <div class="visibility-toggle" id="upload-visibility-toggle">
+          <label><input type="radio" name="upload-visibility" value="public" checked /> 公开提交（需管理员审核）</label>
+          <label><input type="radio" name="upload-visibility" value="private" /> 仅自己可见</label>
+        </div>
+      </div>
       <div class="modal-actions">
-        <button class="btn ghost" id="cancel-upload" type="button">取消</button>
         <button class="btn primary" id="save-upload" type="button">保存</button>
       </div>
     </div>
@@ -256,18 +310,87 @@
 
   <div class="modal" id="feedback-modal">
     <div class="modal-card">
+      <button class="modal-close-btn" data-close="feedback-modal">&times;</button>
       <h3 id="feedback-title">意见反馈</h3>
       <div class="form-group" id="feedback-form-group">
         <label>告诉我们你的想法或建议</label>
         <textarea id="feedback-text" rows="4" placeholder="在这里输入文字..."></textarea>
       </div>
       <div class="modal-actions" id="feedback-actions">
-        <button class="btn ghost" id="cancel-feedback">取消</button>
         <button class="btn primary" id="submit-feedback">提交反馈</button>
       </div>
     </div>
   </div>
-  
+
+  <!-- Admin panel modal -->
+  <div class="modal" id="admin-panel-modal">
+    <div class="modal-card admin-panel-card">
+      <button class="modal-close-btn" data-close="admin-panel-modal">&times;</button>
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-admin-tab="review">资源审批</button>
+        <button class="admin-tab" data-admin-tab="import">批量导入</button>
+        <button class="admin-tab" data-admin-tab="users">用户管理</button>
+        <button class="admin-tab" data-admin-tab="feedback">意见反馈</button>
+      </div>
+      <div class="admin-panel active" data-admin-panel="review">
+        <div id="admin-review-list" class="admin-review-list"></div>
+      </div>
+      <div class="admin-panel" data-admin-panel="import">
+        <p class="admin-hint">下载 Excel 模板，按格式填写后上传即可批量导入资源。</p>
+        <div class="admin-import-actions">
+          <button class="btn ghost" id="btn-download-template">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载模板
+          </button>
+          <label class="btn primary admin-upload-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            上传 Excel
+            <input type="file" id="admin-excel-file" accept=".xlsx" hidden />
+          </label>
+        </div>
+        <div id="admin-import-result"></div>
+      </div>
+      <div class="admin-panel" data-admin-panel="users">
+        <div id="admin-users-list"></div>
+        <h4 class="admin-section-title">管理员申请</h4>
+        <div id="admin-applications-list"></div>
+      </div>
+      <div class="admin-panel" data-admin-panel="feedback">
+        <div id="admin-feedback-list" class="admin-review-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource preview modal -->
+  <div class="modal" id="preview-modal">
+    <div class="modal-card preview-card">
+      <button class="modal-close-btn" data-close="preview-modal">&times;</button>
+      <div class="preview-body">
+        <div class="preview-cover" id="preview-cover">
+          <img id="preview-image" src="" alt="" style="display:none" />
+          <div class="preview-cover-placeholder" id="preview-cover-placeholder">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          </div>
+        </div>
+        <div class="preview-info">
+          <h2 id="preview-title" class="preview-title"></h2>
+          <p class="preview-desc" id="preview-desc"></p>
+          <div class="preview-meta" id="preview-meta"></div>
+          <div class="preview-actions-row">
+            <button class="btn primary" id="preview-jump">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              跳转到网站
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="preview-detailed-area">
+        <h4>详细介绍</h4>
+        <p class="preview-detailed-desc" id="preview-detailed-desc"></p>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
