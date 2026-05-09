@@ -1045,6 +1045,23 @@ body {
   box-shadow: 0 3px 10px rgba(20, 35, 60, 0.06);
 }
 
+.card.later-flash {
+  animation: laterFlash 1.2s ease-out;
+}
+
+@keyframes laterFlash {
+  0% {
+    background-color: #dbeafe;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  }
+  100% {
+    background-color: #ffffff;
+    border-color: #eeeeee;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
 .card h3 {
   margin: 0;
   font-size: 14px;

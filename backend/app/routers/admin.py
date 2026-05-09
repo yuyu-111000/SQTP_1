@@ -1,3 +1,4 @@
+import json
 import io
 import time
 from typing import List
@@ -111,7 +112,7 @@ async def import_excel(
             description=str(description).strip() if description else None,
             detailed_description=str(detailed_desc).strip() if detailed_desc else None,
             platform=str(platform).strip() if platform else None,
-            tags=str(tags_str).strip() if tags_str else None,
+            tags=json.dumps([t.strip() for t in str(tags_str).split(",") if t.strip()], ensure_ascii=False) if tags_str else None,
             created_at=now,
             status="approved",
             visibility="public",

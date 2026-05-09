@@ -185,11 +185,13 @@ class TodoOut(BaseModel):
 class LaterCreate(BaseModel):
     resource_id: str
     title: str
+    subject_id: Optional[str] = None
 
 
 class LaterOut(BaseModel):
     id: str
     resource_id: str
+    subject_id: Optional[str] = None
     title: str
     created_at: Optional[int] = None
 

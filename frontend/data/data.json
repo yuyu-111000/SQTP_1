@@ -10,9 +10,12 @@
           "title": "翁恺 C 语言程序设计",
           "url": "https://www.bilibili.com/video/BV19W411B7w1",
           "description": "浙大计算机入门必看，永远的神",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": [
             {
               "id": "c101_1",
@@ -28,9 +31,12 @@
           "title": "Python 学习路线图 (知乎)",
           "url": "https://zhuanlan.zhihu.com/p/example",
           "description": "详细的 SQL 和 Python 入门到进阶指南",
-          "type": "post",
-          "source": "zhihu",
-          "tags": ["文章", "知乎"],
+          "detailed_description": "",
+          "platform": "zhihu",
+          "tags": [
+            "文章",
+            "知乎"
+          ],
           "comments": []
         },
         {
@@ -38,9 +44,12 @@
           "title": "数据结构与算法基础（浙大）",
           "url": "https://www.bilibili.com/video/BV1JW411S7Q1",
           "description": "适合系统打基础的一套公开课",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": []
         },
         {
@@ -48,9 +57,12 @@
           "title": "CSAPP 读书笔记（精简版）",
           "url": "https://github.com/example/csapp-notes",
           "description": "抓重点的系统与体系结构笔记",
-          "type": "note",
-          "source": "github",
-          "tags": ["笔记", "GitHub"],
+          "detailed_description": "",
+          "platform": "github",
+          "tags": [
+            "笔记",
+            "GitHub"
+          ],
           "comments": []
         },
         {
@@ -58,9 +70,12 @@
           "title": "操作系统概念速记",
           "url": "https://zhuanlan.zhihu.com/p/os-notes",
           "description": "面向期末的知识点梳理",
-          "type": "post",
-          "source": "zhihu",
-          "tags": ["文章", "知乎"],
+          "detailed_description": "",
+          "platform": "zhihu",
+          "tags": [
+            "文章",
+            "知乎"
+          ],
           "comments": []
         }
       ]
@@ -75,9 +90,12 @@
           "title": "微积分历年卷 (百度网盘)",
           "url": "https://pan.baidu.com/s/example",
           "description": "提取码: zju1，包含近5年真题",
-          "type": "file",
-          "source": "baidu-pan",
-          "tags": ["资源", "网盘"],
+          "detailed_description": "",
+          "platform": "baidu-pan",
+          "tags": [
+            "资源",
+            "网盘"
+          ],
           "comments": []
         },
         {
@@ -85,9 +103,12 @@
           "title": "宋浩老师高数合集",
           "url": "https://www.bilibili.com/video/BV1Eb411u7Fw",
           "description": "哪里不会点哪里，基础救星",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": []
         },
         {
@@ -95,9 +116,12 @@
           "title": "线性代数速成讲义",
           "url": "https://zhuanlan.zhihu.com/p/linear-algebra",
           "description": "重点公式与例题总结",
-          "type": "post",
-          "source": "zhihu",
-          "tags": ["文章", "知乎"],
+          "detailed_description": "",
+          "platform": "zhihu",
+          "tags": [
+            "文章",
+            "知乎"
+          ],
           "comments": []
         },
         {
@@ -105,9 +129,12 @@
           "title": "概率论与数理统计笔记",
           "url": "https://github.com/example/probability-notes",
           "description": "含常见题型与解题模板",
-          "type": "note",
-          "source": "github",
-          "tags": ["笔记", "GitHub"],
+          "detailed_description": "",
+          "platform": "github",
+          "tags": [
+            "笔记",
+            "GitHub"
+          ],
           "comments": []
         },
         {
@@ -115,9 +142,12 @@
           "title": "高数公式与典型题汇总",
           "url": "https://www.bilibili.com/video/BV1fb411a7xM",
           "description": "期末冲刺用的公式清单",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": []
         }
       ]
@@ -132,9 +162,12 @@
           "title": "大学英语六级词汇精讲",
           "url": "https://www.bilibili.com/video/BV1example",
           "description": "高频词汇与用法总结",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": []
         },
         {
@@ -142,9 +175,12 @@
           "title": "阅读理解技巧与例题",
           "url": "https://zhuanlan.zhihu.com/p/example-english",
           "description": "快速定位与同义替换技巧",
-          "type": "post",
-          "source": "zhihu",
-          "tags": ["文章", "知乎"],
+          "detailed_description": "",
+          "platform": "zhihu",
+          "tags": [
+            "文章",
+            "知乎"
+          ],
           "comments": []
         },
         {
@@ -152,9 +188,12 @@
           "title": "英语写作模板合集",
           "url": "https://github.com/example/english-writing",
           "description": "适配常见话题的写作框架",
-          "type": "note",
-          "source": "github",
-          "tags": ["笔记", "GitHub"],
+          "detailed_description": "",
+          "platform": "github",
+          "tags": [
+            "笔记",
+            "GitHub"
+          ],
           "comments": []
         }
       ]
@@ -169,9 +208,12 @@
           "title": "工程制图基础入门",
           "url": "https://www.bilibili.com/video/BV1drawing1",
           "description": "投影、视图与标注基础",
-          "type": "video",
-          "source": "bilibili",
-          "tags": ["视频", "B站"],
+          "detailed_description": "",
+          "platform": "bilibili",
+          "tags": [
+            "视频",
+            "B站"
+          ],
           "comments": []
         },
         {
@@ -179,9 +221,12 @@
           "title": "零件图读图与识图",
           "url": "https://zhuanlan.zhihu.com/p/example-drawing",
           "description": "常见图样与识图要点",
-          "type": "post",
-          "source": "zhihu",
-          "tags": ["文章", "知乎"],
+          "detailed_description": "",
+          "platform": "zhihu",
+          "tags": [
+            "文章",
+            "知乎"
+          ],
           "comments": []
         },
         {
@@ -189,9 +234,12 @@
           "title": "工程制图练习题合集",
           "url": "https://github.com/example/drawing-exercises",
           "description": "含答案解析的练习题",
-          "type": "note",
-          "source": "github",
-          "tags": ["笔记", "GitHub"],
+          "detailed_description": "",
+          "platform": "github",
+          "tags": [
+            "笔记",
+            "GitHub"
+          ],
           "comments": []
         }
       ]

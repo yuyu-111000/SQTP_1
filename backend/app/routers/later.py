@@ -54,6 +54,7 @@ def create_later(
     item = LaterItem(
         id=f"later_{int(time.time() * 1000)}",
         resource_id=payload.resource_id,
+        subject_id=payload.subject_id,
         title=payload.title,
         created_at=int(time.time()),
         client_id=current_user.id,

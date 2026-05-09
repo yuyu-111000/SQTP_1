@@ -111,6 +111,7 @@ class LaterItem(Base):
 
     id = Column(String, primary_key=True, index=True)
     resource_id = Column(String, nullable=False, index=True)
+    subject_id = Column(String, nullable=True, index=True)
     title = Column(String, nullable=False)
     created_at = Column(Integer, nullable=True)
     client_id = Column(String, index=True, nullable=False, default="default")

@@ -513,6 +513,7 @@ function initCategories() {
   renderSites();
 
   if (savedView === "resource" && state.activeResourceCategory) {
+    els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
     showResourceView();
     renderResources();
     return;
@@ -562,6 +563,7 @@ function renderCategoryList(container, list) {
     li.addEventListener("click", () => {
       state.activeResourceCategory = item.id;
       localStorage.setItem(CATEGORY_KEY, String(item.id));
+      els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
       showResourceView();
       updateActiveNav();
       renderResources();
@@ -582,7 +584,6 @@ function updateActiveNav() {
 function ensureActiveResourceCategory() {
   if (!state.resourceData.length) {
     state.activeResourceCategory = null;
-    localStorage.removeItem(CATEGORY_KEY);
     return null;
   }
   const current = state.resourceData.find((c) => c.id === state.activeResourceCategory);
@@ -602,11 +603,8 @@ async function renderResources() {
     els.resourceSubtitle.textContent = category?.name ? `当前分区：${category.name}` : "按学科分区浏览当前资源";
   }
   if (!category) return;
-  
-  els.resourceContainer.innerHTML = "";
-  
-  if (!state.resourceCache[category.id]) {
 
+  if (!state.resourceCache[category.id]) {
     els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
     try {
       const resources = await fetchJson(`${API_BASE}/subjects/${category.id}/resources`);
@@ -615,14 +613,13 @@ async function renderResources() {
       state.resourceCache[category.id] = category.resources || [];
     }
   }
-  
+
   const uploads = getUploadsForCategory(category?.id);
   const resources = applyResourceFilters([...(uploads || []), ...(state.resourceCache[category.id] || [])]);
-  
+
   els.resourceContainer.innerHTML = "";
-  
   els.resourceContainer.classList.toggle("is-editing", uiState.isResourceEditMode);
-  
+
   if (resources.length === 0) {
     els.resourceContainer.innerHTML = "<div class=\"empty-state\" style=\"width: 100%; text-align: center; color: #999; margin-top: 20px;\">暂无资源</div>";
     return;
@@ -749,7 +746,10 @@ function createTodoItem(todo) {
       <line x1="5" y1="12" x2="19" y2="12"></line>
     </svg>
   `;
-  del.addEventListener("click", () => deleteTodo(todo.id));
+  del.addEventListener("click", (event) => {
+    event.stopPropagation();
+    deleteTodo(todo.id);
+  });
 
   item.appendChild(label);
   item.appendChild(del);
@@ -801,6 +801,7 @@ function renderLaterList(list) {
   items.forEach((item) => {
     const row = document.createElement("div");
     row.className = "later-item";
+    row.style.cursor = "pointer";
     row.innerHTML = `
       <span class="later-item-title">${item.title}</span>
       <button class="remove-later-btn" data-id="${item.resource_id || item.id}" aria-label="移除" >
@@ -809,9 +810,64 @@ function renderLaterList(list) {
         </svg>
       </button>
     `;
-    row.querySelector("button").addEventListener("click", () => removeFromLaterList(item.resource_id || item.id));
+    row.querySelector("button").addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeFromLaterList(item.resource_id || item.id);
+    });
+    row.addEventListener("click", () => navigateToLaterResource(item));
     els.laterList.appendChild(row);
   });
+}
+
+async function navigateToLaterResource(entry) {
+  const resourceId = entry.resource_id || entry.id;
+  const subjectId = entry.subject_id;
+
+  // Find the subject
+  let targetSubjectId = subjectId;
+  if (!targetSubjectId) {
+    // Fallback: search caches for the resource
+    for (const [catId, resources] of Object.entries(state.resourceCache)) {
+      if (resources.some((r) => String(r.id) === String(resourceId))) {
+        targetSubjectId = catId;
+        break;
+      }
+    }
+  }
+
+  if (!targetSubjectId) {
+    // Still not found — try to just remove it
+    await removeFromLaterList(resourceId);
+    return;
+  }
+
+  // Switch to the target subject
+  state.activeResourceCategory = targetSubjectId;
+  localStorage.setItem(CATEGORY_KEY, String(targetSubjectId));
+  updateActiveNav();
+
+  // Show resource view with loading placeholder
+  els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
+  showResourceView();
+
+  // Force refresh the cache to ensure the resource is in the list
+  delete state.resourceCache[targetSubjectId];
+  await renderResources();
+
+  // Scroll to and flash the resource card
+  setTimeout(() => {
+    const card = els.resourceContainer.querySelector(`[data-resource-id="${resourceId}"]`);
+    if (card) {
+      card.scrollIntoView({ block: "center", behavior: "smooth" });
+      card.classList.add("later-flash");
+      card.addEventListener("animationend", () => {
+        card.classList.remove("later-flash");
+      }, { once: true });
+    }
+  }, 300);
+
+  // Remove from later list
+  await removeFromLaterList(resourceId);
 }
 
 function isInLaterList(resourceId) {
@@ -845,7 +901,8 @@ async function addToLaterList(item) {
   list.unshift({
     id: item.id,
     title: item.title,
-    url: item.url || ""
+    url: item.url || "",
+    subject_id: item.subject_id || state.activeResourceCategory || ""
   });
   storage.setLaterList(list);
   state.laterItems = list;
@@ -994,7 +1051,9 @@ async function saveUpload(event) {
     storage.setUploads(uploadsMap);
   }
 
+  delete state.resourceCache[category.id];
   closeUploadModal();
+  els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
   showResourceView();
   updateActiveNav();
   await renderResources();
@@ -1066,6 +1125,7 @@ async function deleteResource(item) {
     delete state.resourceCache[category.id];
     state.laterItems = state.laterItems.filter((later) => (later.resource_id || later.id) !== item.id);
     renderLaterList(state.laterItems);
+    els.resourceContainer.innerHTML = "<div class=\"loading-placeholder\">加载中...</div>";
     showResourceView();
     updateActiveNav();
     await renderResources();
@@ -1947,19 +2007,26 @@ function bindEvents() {
     event.stopPropagation();
     toggleGlobalDrawer("study");
   });
-  els.globalDrawerBackdrop?.addEventListener("click", () => {
+  els.globalDrawerBackdrop?.addEventListener("click", (event) => {
+    event.stopPropagation();
     closeAllFloatingPanels();
   });
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Node)) return;
+    // If the target was removed from the DOM by a preceding handler (e.g. innerHTML
+    // replacement), don't treat it as an outside-panel click — the user intended
+    // to interact with an element inside a floating panel.
+    if (target instanceof Element && !document.contains(target)) {
+      return;
+    }
     const isEditingSites = els.siteContainer?.classList.contains("is-editing");
     if (isEditingSites) {
-      
+
       const clickedInsideCard = target instanceof Element && target.closest('.site-card');
       const clickedEditToggle = els.toggleEditMode?.contains(target);
-      
-      
+
+
       if (!clickedInsideCard && !clickedEditToggle) {
         els.siteContainer.classList.remove("is-editing");
         document.body.dataset.editMode = "false";
@@ -1976,6 +2043,7 @@ function bindEvents() {
     }
     const clickedInsideFloatingPanel =
       (els.globalDrawer?.contains(target) || false) ||
+      (els.globalDrawerBackdrop?.contains(target) || false) ||
       (els.headerQuickActions?.contains(target) || false) ||
       (els.bottomPanel?.contains(target) || false) ||
       (els.bottomBar?.contains(target) || false) ||
@@ -2017,9 +2085,13 @@ function bindEvents() {
       storage.setRoomQuote(els.roomQuote.value.trim());
     });
   }
+  let searchDebounceTimer;
   els.searchInput.addEventListener("input", () => {
-    renderResources();
-    renderSites();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      renderResources();
+      renderSites();
+    }, 200);
   });
   els.brand?.addEventListener("click", handleBrandHomeNavigation);
   els.brand?.addEventListener("keydown", handleBrandKeydown);
