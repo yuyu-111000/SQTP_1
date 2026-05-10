@@ -135,7 +135,11 @@
       <section class="nav-section">
         <h2>学科资源</h2>
         <ul id="resource-categories" class="nav-list"></ul>
-        <div class="nav-actions">
+        <div class="nav-actions" id="nav-actions-bottom">
+          <div class="quick-add-subject" id="quick-add-subject" style="display:none">
+            <input type="text" id="quick-subject-name" placeholder="新学科名称..." style="flex:1;min-width:0;height:28px;padding:0 8px;font-size:12px;border:1px solid #d0d0d5;border-radius:4px;background:#f2f2f5;outline:none;box-sizing:border-box" />
+            <button id="btn-quick-add-subject" style="flex-shrink:0;height:28px;padding:0 8px;font-size:11px;line-height:28px;border-radius:4px;background:var(--primary);color:#fff;border:none;cursor:pointer">添加</button>
+          </div>
           <button class="btn ghost" id="open-feedback-btn">意见反馈</button>
           <button class="btn ghost" id="open-admin-apply-btn">申请管理员</button>
         </div>
@@ -294,14 +298,8 @@
         <label>来源平台</label>
         <input id="upload-platform" type="text" placeholder="例如：B站 / 知乎" />
       </div>
-      <div class="form-group">
-        <label>可见范围</label>
-        <div class="visibility-toggle" id="upload-visibility-toggle">
-          <label><input type="radio" name="upload-visibility" value="public" checked /> 公开提交（需管理员审核）</label>
-          <label><input type="radio" name="upload-visibility" value="private" /> 仅自己可见</label>
-        </div>
-      </div>
       <div class="modal-actions">
+        <span class="upload-hint">在管理员界面直接添加资源</span>
         <button class="btn primary" id="save-upload" type="button">保存</button>
       </div>
     </div>
@@ -330,13 +328,22 @@
         <button class="admin-tab active" data-admin-tab="review">资源审批</button>
         <button class="admin-tab" data-admin-tab="import">批量导入</button>
         <button class="admin-tab" data-admin-tab="users">用户管理</button>
-        <button class="admin-tab" data-admin-tab="feedback">意见反馈</button>
+        <button class="admin-tab" data-admin-tab="subjects">学科管理</button>
       </div>
       <div class="admin-panel active" data-admin-panel="review">
         <div id="admin-review-list" class="admin-review-list"></div>
       </div>
       <div class="admin-panel" data-admin-panel="import">
-        <p class="admin-hint">下载 Excel 模板，按格式填写后上传即可批量导入资源。</p>
+        <div class="admin-instructions">
+          <p><strong>使用说明：</strong></p>
+          <ol>
+            <li>点击「下载模板」获取 Excel 模板文件（含示例行）</li>
+            <li>按模板格式填写资源信息，模板包含以下列：<b>标题</b>、<b>URL</b>、<b>描述</b>、<b>详细介绍</b>、<b>标签（逗号分隔）</b>、<b>平台</b>、<b>所属学科ID</b></li>
+            <li>其中<b>标题、URL、所属学科ID</b>为必填项，其余可选</li>
+            <li>填写完成后点击「上传 Excel」选择文件即可批量导入</li>
+          </ol>
+          <p class="admin-hint-tip">注意：如遇到「学科ID不存在」的错误，请先在「学科管理」标签中添加该学科，再重新导入。</p>
+        </div>
         <div class="admin-import-actions">
           <button class="btn ghost" id="btn-download-template">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -355,8 +362,23 @@
         <h4 class="admin-section-title">管理员申请</h4>
         <div id="admin-applications-list"></div>
       </div>
-      <div class="admin-panel" data-admin-panel="feedback">
-        <div id="admin-feedback-list" class="admin-review-list"></div>
+      <div class="admin-panel" data-admin-panel="subjects">
+        <div class="admin-instructions">
+          <p><strong>使用说明：</strong></p>
+          <ol>
+            <li>在「学科ID」输入框中填写学科的唯一标识（如 <code>math</code>、<code>cs</code>），在「学科名称」中输入显示名称（如「数学」「计算机科学」），点击「添加」即可创建</li>
+            <li>点击学科行右侧的「编辑」按钮可<b>修改学科ID和名称</b>，修改 ID 会自动级联更新所有关联资源</li>
+            <li>学科ID 也是 Excel 批量导入时「所属学科ID」列的填写依据；侧边栏底部还提供了「快速添加」入口，只需输入名称即可自动生成 ID</li>
+          </ol>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+          <input id="admin-subject-id" type="text" placeholder="学科ID" style="width:90px;height:28px;padding:0 8px;font-size:12px;border:1px solid #d0d0d5;border-radius:4px;background:#f2f2f5;outline:none;box-sizing:border-box" />
+          <input id="admin-subject-name" type="text" placeholder="学科名称" style="flex:1;min-width:0;height:28px;padding:0 8px;font-size:12px;border:1px solid #d0d0d5;border-radius:4px;background:#f2f2f5;outline:none;box-sizing:border-box" />
+          <button id="admin-add-subject" style="flex-shrink:0;height:28px;padding:0 10px;font-size:11px;line-height:28px;border-radius:4px;background:var(--primary);color:#fff;border:none;cursor:pointer">添加</button>
+        </div>
+        <div id="admin-subject-msg" style="font-size:11px;color:#e53e3e;margin-bottom:6px"></div>
+        <h4 class="admin-section-title" style="margin-top:8px">现有学科</h4>
+        <div id="admin-subjects-list"></div>
       </div>
     </div>
   </div>

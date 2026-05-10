@@ -13,7 +13,7 @@ def reset_db():
 
 def seed_subject():
     db = SessionLocal()
-    subj = Subject(id="cs_base", name="C语言程序设计", icon="😎")
+    subj = Subject(id="c", name="C语言程序设计", icon="😎")
     db.add(subj)
     db.commit()
     db.close()
@@ -44,7 +44,7 @@ def test_non_admin_public_resource_is_pending():
 
     # Create public resource
     resp = client.post(
-        "/subjects/cs_base/resources",
+        "/subjects/c/resources",
         json={"title": "My Resource", "url": "https://example.com", "visibility": "public"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
@@ -63,7 +63,7 @@ def test_non_admin_private_resource_is_approved():
     user_token = get_token(client, "student2", "pass1234")
 
     resp = client.post(
-        "/subjects/cs_base/resources",
+        "/subjects/c/resources",
         json={"title": "Private Note", "url": "https://example.com", "visibility": "private"},
         headers={"Authorization": f"Bearer {user_token}"},
     )
@@ -82,7 +82,7 @@ def test_admin_create_resource_is_approved():
     admin_token = get_token(client, "admin", "admin123")
 
     resp = client.post(
-        "/subjects/cs_base/resources",
+        "/subjects/c/resources",
         json={"title": "Admin Resource", "url": "https://example.com", "visibility": "public"},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
@@ -103,7 +103,7 @@ def test_admin_review_flow():
     user_token = get_token(client, "user3", "pass1234")
 
     resp = client.post(
-        "/subjects/cs_base/resources",
+        "/subjects/c/resources",
         json={"title": "Pending Resource", "url": "https://example.com", "visibility": "public"},
         headers={"Authorization": f"Bearer {user_token}"},
     )

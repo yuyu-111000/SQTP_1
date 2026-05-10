@@ -9,7 +9,6 @@ const API_BASE = (() => {
   }
   return "/api";
 })();
-const ONLINE_COUNT_POLL_INTERVAL = 30 * 1000;
 const VIEW_KEY = "sqtp_main_view";
 const CATEGORY_KEY = "sqtp_active_resource_category";
 
@@ -115,6 +114,17 @@ function updateAuthUI() {
     const el = document.getElementById(id);
     if (el && el.style.display !== displayVal) el.style.display = displayVal;
   });
+
+  // Toggle quick-add subject (admin only)
+  const quickAdd = document.getElementById('quick-add-subject');
+  if (quickAdd) quickAdd.style.display = admin ? '' : 'none';
+
+  // Hide feedback + apply buttons for admin
+  const fbBtn = document.getElementById('open-feedback-btn');
+  const applyBtn = document.getElementById('open-admin-apply-btn');
+  const fbDisplay = admin ? 'none' : '';
+  if (fbBtn) fbBtn.style.display = fbDisplay;
+  if (applyBtn) applyBtn.style.display = fbDisplay;
 }
 
 function logout() {
@@ -241,7 +251,6 @@ const uiState = {
   isResourceEditMode: false
 };
 
-let onlineCountPollTimer = null;
 let bottomPanelTouchStartY = null;
 
 const storage = {
@@ -398,7 +407,7 @@ async function loadData() {
     updatePomodoroView();
     await loadLaterItems();
     initCategories();
-    startOnlineCountPolling({ immediate: true });
+    initOnlineCount();
     await loadTodos();
   } finally {
     loadDataRunning = false;
@@ -949,11 +958,9 @@ function openUploadModal(mode = "upload") {
   if (mode === "apply") {
     els.uploadModalTitle.textContent = "新建栏目申请";
     els.saveUpload.textContent = "保存并提交申请";
-    document.getElementById("upload-visibility-toggle").style.display = "none";
   } else {
     els.uploadModalTitle.textContent = "上传学习内容";
     els.saveUpload.textContent = "保存";
-    document.getElementById("upload-visibility-toggle").style.display = "";
   }
   els.uploadModal.classList.add("show");
 }
@@ -1006,9 +1013,6 @@ async function saveUpload(event) {
 
   const tags = tagsStr ? tagsStr.split(/,|，/).map(t => t.trim()).filter(Boolean) : [];
 
-  const visibilityRadio = document.querySelector('input[name="upload-visibility"]:checked');
-  const visibility = visibilityRadio ? visibilityRadio.value : "public";
-
   // If logged in, submit via API
   if (isLoggedIn()) {
     try {
@@ -1022,7 +1026,7 @@ async function saveUpload(event) {
           detailed_description: detailedDescription || null,
           tags: tags.join(","),
           platform: platform || null,
-          visibility,
+          visibility: "public",
         }),
       });
     } catch (e) {
@@ -1045,7 +1049,7 @@ async function saveUpload(event) {
       platform: platform || null,
       client_id: getClientId(),
       status: "approved",
-      visibility,
+      visibility: "public",
     };
     uploadsMap[category.id].unshift(newResource);
     storage.setUploads(uploadsMap);
@@ -1435,31 +1439,6 @@ async function initOnlineCount() {
     const count = Math.floor(Math.random() * 60) + 20;
     els.onlineCount.textContent = count;
   }
-}
-
-function stopOnlineCountPolling() {
-  if (!onlineCountPollTimer) return;
-  clearInterval(onlineCountPollTimer);
-  onlineCountPollTimer = null;
-}
-
-function startOnlineCountPolling({ immediate = false } = {}) {
-  stopOnlineCountPolling();
-  if (immediate && !document.hidden) {
-    initOnlineCount();
-  }
-  if (document.hidden) return;
-  onlineCountPollTimer = setInterval(() => {
-    initOnlineCount();
-  }, ONLINE_COUNT_POLL_INTERVAL);
-}
-
-function handleVisibilityChange() {
-  if (document.hidden) {
-    stopOnlineCountPolling();
-    return;
-  }
-  startOnlineCountPolling({ immediate: true });
 }
 
 function setPomodoroToggleIcon(isRunning) {
@@ -1889,26 +1868,255 @@ async function handleApplication(appId, action) {
   } catch (e) { alert('操作失败'); }
 }
 
-async function loadAdminFeedbackList() {
-  const listEl = document.getElementById('admin-feedback-list');
+// ── Subject management (admin) ──────────────────────
+
+// Guard: force admin modal open via inline style (higher priority than CSS class)
+function holdAdminModal() {
+  const modal = document.getElementById('admin-panel-modal');
+  if (!modal || !modal.classList.contains('show')) return null;
+  // Lock with inline style — survives classList changes
+  modal.style.display = 'flex';
+  return modal;
+}
+function restoreAdminModal(modal) {
+  if (!modal) return;
+  // Keep show class and clear inline override so CSS takes over again
+  modal.classList.add('show');
+  modal.style.display = '';
+}
+
+// Incremental sidebar updates — avoids innerHTML wipe that causes flicker
+function addSidebarSubject(s) {
+  const container = els.resourceCategories;
+  const li = document.createElement('li');
+  li.className = 'nav-item';
+  li.textContent = s.name;
+  li.addEventListener('click', () => {
+    state.activeResourceCategory = s.id;
+    localStorage.setItem(CATEGORY_KEY, s.id);
+    els.resourceContainer.innerHTML = '<div class="loading-placeholder">加载中...</div>';
+    showResourceView();
+    updateActiveNav();
+    renderResources();
+    els.resourceContent?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+  container.appendChild(li);
+  updateActiveNav();
+}
+
+function updateSidebarSubject(oldId, s) {
+  const container = els.resourceCategories;
+  for (const li of container.children) {
+    // Match by index in state.resourceData since li has no data attr
+    const idx = [...container.children].indexOf(li);
+    if (state.resourceData[idx]?.id === oldId) {
+      li.textContent = s.name;
+      // Replace click handler with new id
+      const newLi = li.cloneNode(true);
+      newLi.addEventListener('click', () => {
+        state.activeResourceCategory = s.id;
+        localStorage.setItem(CATEGORY_KEY, s.id);
+        els.resourceContainer.innerHTML = '<div class="loading-placeholder">加载中...</div>';
+        showResourceView();
+        updateActiveNav();
+        renderResources();
+        els.resourceContent?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+      li.replaceWith(newLi);
+      break;
+    }
+  }
+  updateActiveNav();
+}
+
+function removeSidebarSubject(sid) {
+  const container = els.resourceCategories;
+  for (const li of container.children) {
+    const idx = [...container.children].indexOf(li);
+    if (state.resourceData[idx]?.id === sid) {
+      li.remove();
+      break;
+    }
+  }
+  updateActiveNav();
+}
+
+function makeSubjectRowHTML(s) {
+  return `
+    <div class="admin-review-item" id="subject-row-${s.id}">
+      <div class="review-info subject-display">
+        <span><strong>${s.name}</strong> <span style="color:var(--text-secondary);font-size:11px">ID: ${s.id}</span></span>
+      </div>
+      <div class="review-info subject-edit" style="display:none;flex:1;gap:6px;align-items:center">
+        <input class="subject-edit-id" value="${s.id}" style="width:80px;padding:4px 6px;font-size:12px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary)" />
+        <input class="subject-edit-name" value="${s.name.replace(/"/g, '&quot;')}" style="flex:1;padding:4px 6px;font-size:12px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-secondary);color:var(--text-primary)" />
+        <button class="btn primary btn-sm subject-save-btn">保存</button>
+        <button class="btn ghost btn-sm subject-cancel-btn">取消</button>
+      </div>
+      <div class="admin-review-actions subject-actions">
+        <button class="btn ghost btn-sm edit-subject-btn" data-sid="${s.id}">编辑</button>
+        <button class="btn ghost btn-sm delete-subject-btn" data-sid="${s.id}" style="color:#e53e3e">删除</button>
+      </div>
+    </div>`;
+}
+
+function bindSubjectRowEvents(row) {
+  const sid = row.id.replace('subject-row-', '');
+  row.querySelector('.edit-subject-btn')?.addEventListener('click', () => {
+    row.querySelector('.subject-display').style.display = 'none';
+    row.querySelector('.subject-edit').style.display = '';
+    row.querySelector('.subject-actions').style.display = 'none';
+  });
+  row.querySelector('.subject-cancel-btn')?.addEventListener('click', () => {
+    row.querySelector('.subject-display').style.display = '';
+    row.querySelector('.subject-edit').style.display = 'none';
+    row.querySelector('.subject-actions').style.display = '';
+  });
+  row.querySelector('.subject-save-btn')?.addEventListener('click', async () => {
+    const modal = holdAdminModal();
+    const oldId = sid;
+    const newId = row.querySelector('.subject-edit-id').value.trim();
+    const newName = row.querySelector('.subject-edit-name').value.trim();
+    if (!newId || !newName) return;
+    try {
+      await fetchJson(`${API_BASE}/admin/subjects/${oldId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: newId, name: newName }),
+      });
+      // Update state (before DOM so incremental helpers see correct data)
+      const idx = state.resourceData.findIndex(c => c.id === oldId);
+      if (idx >= 0) {
+        state.resourceData[idx] = { ...state.resourceData[idx], id: newId, name: newName };
+      }
+      if (state.activeResourceCategory === oldId) {
+        state.activeResourceCategory = newId;
+        localStorage.setItem(CATEGORY_KEY, newId);
+      }
+      updateSidebarSubject(oldId, { id: newId, name: newName });
+      // Replace this row with updated HTML
+      const updated = { id: newId, name: newName };
+      const temp = document.createElement('div');
+      temp.innerHTML = makeSubjectRowHTML(updated);
+      const newRow = temp.firstElementChild;
+      row.replaceWith(newRow);
+      bindSubjectRowEvents(newRow);
+    } catch (e) { /* stay in edit mode */ }
+    restoreAdminModal(modal);
+  });
+  row.querySelector('.delete-subject-btn')?.addEventListener('click', async () => {
+    if (row.classList.contains('delete-confirming')) {
+      const modal = holdAdminModal();
+      try {
+        await fetchJson(`${API_BASE}/admin/subjects/${sid}`, { method: 'DELETE' });
+        // Update state (before DOM)
+        state.resourceData = state.resourceData.filter(c => c.id !== sid);
+        if (state.activeResourceCategory === sid) {
+          state.activeResourceCategory = state.resourceData[0]?.id || null;
+          if (state.activeResourceCategory) localStorage.setItem(CATEGORY_KEY, state.activeResourceCategory);
+        }
+        removeSidebarSubject(sid);
+        row.remove();
+      } catch (e) { /* show error */ }
+      restoreAdminModal(modal);
+    } else {
+      row.classList.add('delete-confirming');
+      const btn = row.querySelector('.delete-subject-btn');
+      btn.textContent = '确认删除';
+      btn.style.color = '#fff';
+      btn.style.background = '#e53e3e';
+      btn.style.borderRadius = '4px';
+      btn.style.padding = '2px 8px';
+      setTimeout(() => {
+        if (row.classList.contains('delete-confirming')) {
+          row.classList.remove('delete-confirming');
+          btn.textContent = '删除';
+          btn.style.color = '#e53e3e';
+          btn.style.background = '';
+          btn.style.borderRadius = '';
+          btn.style.padding = '';
+        }
+      }, 3000);
+    }
+  });
+}
+
+async function loadAdminSubjectsList() {
+  const listEl = document.getElementById('admin-subjects-list');
   listEl.innerHTML = '<p style="font-size:12px">加载中...</p>';
   try {
-    const items = await fetchJson(`${API_BASE}/feedback`);
-    if (!items.length) {
-      listEl.innerHTML = '<p style="font-size:12px;color:var(--text-secondary)">暂无反馈</p>';
+    const subjects = await fetchJson(`${API_BASE}/admin/subjects`);
+    if (!subjects.length) {
+      listEl.innerHTML = '<p style="font-size:12px;color:var(--text-secondary)">暂无学科，请添加</p>';
       return;
     }
-    listEl.innerHTML = items.map(item => `
-      <div class="admin-review-item">
-        <div class="review-info">
-          <p style="margin:0;line-height:1.6;white-space:pre-wrap">${item.content}</p>
-          <p style="font-size:11px;color:var(--text-secondary);margin-top:4px">${item.created_at ? new Date(item.created_at*1000).toLocaleString() : ''}</p>
-        </div>
-      </div>
-    `).join('');
+    listEl.innerHTML = subjects.map(makeSubjectRowHTML).join('');
+    listEl.querySelectorAll('.admin-review-item').forEach(bindSubjectRowEvents);
   } catch (e) {
     listEl.innerHTML = '<p style="font-size:12px;color:#e53e3e">加载失败</p>';
   }
+}
+
+async function addSubject() {
+  const idEl = document.getElementById('admin-subject-id');
+  const nameEl = document.getElementById('admin-subject-name');
+  const msgEl = document.getElementById('admin-subject-msg');
+  const id = idEl.value.trim();
+  const name = nameEl.value.trim();
+  if (!id || !name) { msgEl.textContent = '学科ID和名称为必填项'; return; }
+  if (!/^[a-z][a-z0-9_]*$/.test(id)) { msgEl.textContent = 'ID只能含小写字母、数字、下划线，字母开头'; return; }
+  msgEl.textContent = '';
+  const modal = holdAdminModal();
+  try {
+    const newSubject = await fetchJson(`${API_BASE}/admin/subjects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name }),
+    });
+    idEl.value = '';
+    nameEl.value = '';
+    state.resourceData.push(newSubject);
+    addSidebarSubject(newSubject);
+    // Append to admin list in-place
+    const listEl = document.getElementById('admin-subjects-list');
+    const placeholder = listEl.querySelector('p');
+    if (placeholder) placeholder.remove();
+    const temp = document.createElement('div');
+    temp.innerHTML = makeSubjectRowHTML(newSubject);
+    listEl.appendChild(temp.firstElementChild);
+    bindSubjectRowEvents(listEl.lastElementChild);
+  } catch (e) { msgEl.textContent = e.message; }
+  restoreAdminModal(modal);
+}
+
+// Quick add subject from sidebar
+async function quickAddSubject() {
+  const input = document.getElementById('quick-subject-name');
+  const name = input.value.trim();
+  if (!name) return;
+  const modal = holdAdminModal();
+  try {
+    const newSubject = await fetchJson(`${API_BASE}/admin/subjects/auto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: '', name }),
+    });
+    input.value = '';
+    state.resourceData.push(newSubject);
+    addSidebarSubject(newSubject);
+    // If admin panel subjects tab is open, append row there too
+    const panel = document.querySelector('[data-admin-panel="subjects"]');
+    if (panel && panel.classList.contains('active')) {
+      const listEl = document.getElementById('admin-subjects-list');
+      const placeholder = listEl.querySelector('p');
+      if (placeholder) placeholder.remove();
+      const temp = document.createElement('div');
+      temp.innerHTML = makeSubjectRowHTML(newSubject);
+      listEl.appendChild(temp.firstElementChild);
+      bindSubjectRowEvents(listEl.lastElementChild);
+    }
+  } catch (e) { /* ignore */ }
+  restoreAdminModal(modal);
 }
 
 // ── Init on page load ───────────────────────────────
@@ -2077,8 +2285,6 @@ function bindEvents() {
       closeAllFloatingPanels();
     }
   });
-  document.addEventListener("visibilitychange", handleVisibilityChange);
-  window.addEventListener("beforeunload", stopOnlineCountPolling);
   window.addEventListener("resize", syncDesktopLayoutMetrics);
   if (els.roomQuote) {
     els.roomQuote.addEventListener("change", () => {
@@ -2138,7 +2344,7 @@ function bindEvents() {
       if (panel) panel.classList.add('active');
       if (tabName === 'review') loadAdminReviewList();
       if (tabName === 'users') loadAdminUsersList();
-      if (tabName === 'feedback') loadAdminFeedbackList();
+      if (tabName === 'subjects') loadAdminSubjectsList();
     });
   });
 
@@ -2176,7 +2382,9 @@ function bindEvents() {
       });
       const data = await res.json();
       if (data.errors && data.errors.length) {
-        resultEl.innerHTML = `<span style="color:#c53030">导入完成，成功 ${data.created} 条，失败 ${data.errors.length} 条</span>`;
+        const errorDetails = data.errors.map(e => `第${e.row}行: ${e.error}`).join('<br>');
+        resultEl.innerHTML = `<span style="color:#c53030">导入完成，成功 ${data.created} 条，失败 ${data.errors.length} 条</span>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);max-height:120px;overflow-y:auto">${errorDetails}</div>`;
       } else {
         resultEl.innerHTML = `<span style="color:#2b5ecf">成功导入 ${data.created} 条资源</span>`;
       }
@@ -2185,6 +2393,12 @@ function bindEvents() {
     }
     e.target.value = '';
   });
+
+  // Admin add subject
+  document.getElementById('admin-add-subject')?.addEventListener('click', addSubject);
+
+  // Quick add subject from sidebar
+  document.getElementById('btn-quick-add-subject')?.addEventListener('click', quickAddSubject);
 
   // Feedback button
   document.getElementById('open-feedback-btn')?.addEventListener('click', () => {

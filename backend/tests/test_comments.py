@@ -13,10 +13,10 @@ def reset_db():
 def seed_resource():
     db = SessionLocal()
     try:
-        subject = Subject(id="cs_base", name="C语言程序设计", icon="💻")
+        subject = Subject(id="c", name="C语言程序设计", icon="💻")
         resource = Resource(
             id="r1",
-            subject_id="cs_base",
+            subject_id="c",
             title="示例资源",
             url="https://example.com",
             description="desc",

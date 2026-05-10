@@ -53,7 +53,18 @@ class SubjectOut(BaseModel):
     icon: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
-    
+
+
+class SubjectCreate(BaseModel):
+    id: str
+    name: str
+
+
+class SubjectUpdate(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+
+
 class ResourceCreate(BaseModel):
     title: str
     url: str

@@ -1,7 +1,7 @@
 {
   "studyResourceCategories": [
     {
-      "id": "cs_base",
+      "id": "c",
       "name": "C语言程序设计",
       "icon": "💻",
       "resources": [
@@ -81,7 +81,7 @@
       ]
     },
     {
-      "id": "math_public",
+      "id": "math",
       "name": "微积分",
       "icon": "📐",
       "resources": [
@@ -153,7 +153,7 @@
       ]
     },
     {
-      "id": "english",
+      "id": "eng",
       "name": "大学英语",
       "icon": "📘",
       "resources": [
@@ -199,7 +199,7 @@
       ]
     },
     {
-      "id": "engineering_drawing",
+      "id": "draw",
       "name": "工程图学",
       "icon": "📐",
       "resources": [
