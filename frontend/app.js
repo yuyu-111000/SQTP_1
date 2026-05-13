@@ -1779,6 +1779,7 @@ function openAdminPanel() {
   document.getElementById('admin-panel-modal').classList.add('show');
   loadAdminReviewList();
   loadAdminUsersList();
+  loadAdminResourcesList();
 }
 
 async function loadAdminReviewList() {
@@ -2119,6 +2120,194 @@ async function quickAddSubject() {
   restoreAdminModal(modal);
 }
 
+// ── Resource management (admin) ────────────────────
+
+function debounce(fn, delay) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+let adminResourcesState = {
+  resources: [],
+  selectedIds: new Set(),
+  total: 0,
+  page: 1,
+  pageSize: 50,
+  keyword: '',
+  subjectId: '',
+};
+
+async function loadAdminResourcesList() {
+  const tbody = document.getElementById('admin-resources-tbody');
+  const emptyEl = document.getElementById('admin-resources-empty');
+  const statsEl = document.getElementById('admin-resources-stats');
+  const paginationEl = document.getElementById('admin-resources-pagination');
+  const subjectFilter = document.getElementById('admin-resources-subject-filter');
+
+  // Populate subject filter if empty
+  if (subjectFilter && subjectFilter.options.length <= 1) {
+    try {
+      const subjects = await fetchJson(`${API_BASE}/admin/subjects`);
+      subjects.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = `${s.name} (${s.id})`;
+        subjectFilter.appendChild(opt);
+      });
+    } catch (e) { /* ignore */ }
+  }
+
+  tbody.innerHTML = '<tr><td colspan="6" class="admin-resources-loading">加载中...</td></tr>';
+  emptyEl.style.display = 'none';
+
+  const params = new URLSearchParams();
+  if (adminResourcesState.subjectId) params.set('subject_id', adminResourcesState.subjectId);
+  if (adminResourcesState.keyword) params.set('keyword', adminResourcesState.keyword);
+  params.set('page', adminResourcesState.page);
+  params.set('page_size', adminResourcesState.pageSize);
+
+  try {
+    const data = await fetchJson(`${API_BASE}/admin/resources?${params.toString()}`);
+    adminResourcesState.resources = data.resources;
+    adminResourcesState.total = data.total;
+    adminResourcesState.selectedIds.clear();
+
+    // Build subject-id → name map from the filter dropdown
+    const subjectMap = {};
+    if (subjectFilter) {
+      for (const opt of subjectFilter.options) {
+        if (opt.value) subjectMap[opt.value] = opt.textContent.replace(/\s*\(.*\)\s*$/, '');
+      }
+    }
+
+    statsEl.textContent = `共 ${data.total} 条资源`;
+    document.getElementById('admin-resources-selected-count').textContent = '已选 0 项';
+    document.getElementById('btn-batch-delete').disabled = true;
+    document.getElementById('admin-resources-select-all').checked = false;
+
+    if (!data.resources.length) {
+      tbody.innerHTML = '';
+      emptyEl.style.display = '';
+      paginationEl.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = data.resources.map(r => {
+      const tags = (r.tags || []).map(t => `<span class="admin-res-tag">${escapeHtml(t)}</span>`).join('');
+      const subjName = subjectMap[r.subject_id] || r.subject_id;
+      return `
+        <tr data-resource-id="${r.id}">
+          <td class="col-check"><input type="checkbox" class="admin-resource-checkbox" data-id="${r.id}" /></td>
+          <td class="col-title" title="${escapeHtml(r.title)}">${escapeHtml(r.title)}</td>
+          <td class="col-url" title="${escapeHtml(r.url)}"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${truncateUrl(r.url)}</a></td>
+          <td class="col-subject" title="${escapeHtml(subjName)} (${escapeHtml(r.subject_id)})">${escapeHtml(subjName)}</td>
+          <td class="col-platform">${escapeHtml(r.platform || '-')}</td>
+          <td class="col-tags">${tags || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Bind checkbox events
+    tbody.querySelectorAll('.admin-resource-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          adminResourcesState.selectedIds.add(cb.dataset.id);
+        } else {
+          adminResourcesState.selectedIds.delete(cb.dataset.id);
+        }
+        updateSelectionUI();
+      });
+    });
+
+    // Pagination
+    const totalPages = Math.ceil(data.total / adminResourcesState.pageSize);
+    if (totalPages > 1) {
+      paginationEl.innerHTML = `
+        <button class="admin-page-btn" ${data.page <= 1 ? 'disabled' : ''} data-page="${data.page - 1}">‹ 上一页</button>
+        <span class="admin-page-info">${data.page} / ${totalPages}</span>
+        <button class="admin-page-btn" ${data.page >= totalPages ? 'disabled' : ''} data-page="${data.page + 1}">下一页 ›</button>
+      `;
+      paginationEl.querySelectorAll('.admin-page-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+          adminResourcesState.page = parseInt(btn.dataset.page);
+          loadAdminResourcesList();
+        });
+      });
+    } else {
+      paginationEl.innerHTML = '';
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="admin-resources-error">加载失败: ' + e.message + '</td></tr>';
+    statsEl.textContent = '';
+    paginationEl.innerHTML = '';
+  }
+}
+
+function updateSelectionUI() {
+  const count = adminResourcesState.selectedIds.size;
+  document.getElementById('admin-resources-selected-count').textContent = `已选 ${count} 项`;
+  document.getElementById('btn-batch-delete').disabled = count === 0;
+  document.getElementById('admin-resources-select-all').checked =
+    count > 0 && count === adminResourcesState.resources.length;
+}
+
+async function batchDeleteResources() {
+  const ids = [...adminResourcesState.selectedIds];
+  if (!ids.length) return;
+
+  const confirmed = confirm(`确定要删除选中的 ${ids.length} 条资源吗？此操作不可撤销。`);
+  if (!confirmed) return;
+
+  const btn = document.getElementById('btn-batch-delete');
+  btn.disabled = true;
+  btn.textContent = '删除中...';
+
+  try {
+    const data = await fetchJson(`${API_BASE}/admin/resources/batch-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resource_ids: ids }),
+    });
+
+    let msg = `成功删除 ${data.deleted} 条资源`;
+    if (data.errors && data.errors.length) {
+      msg += `，${data.errors.length} 条失败`;
+      console.warn('删除失败详情:', data.errors);
+    }
+    alert(msg);
+
+    // Refresh list
+    adminResourcesState.selectedIds.clear();
+    loadAdminResourcesList();
+  } catch (e) {
+    alert('批量删除失败: ' + e.message);
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      批量删除
+    `;
+  }
+}
+
+function truncateUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.hostname + u.pathname.slice(0, 30) + (u.pathname.length > 30 ? '...' : '');
+  } catch {
+    return url.length > 50 ? url.slice(0, 50) + '...' : url;
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // ── Init on page load ───────────────────────────────
 
 function initApp() {
@@ -2345,6 +2534,7 @@ function bindEvents() {
       if (tabName === 'review') loadAdminReviewList();
       if (tabName === 'users') loadAdminUsersList();
       if (tabName === 'subjects') loadAdminSubjectsList();
+      if (tabName === 'resources') loadAdminResourcesList();
     });
   });
 
@@ -2393,6 +2583,37 @@ function bindEvents() {
     }
     e.target.value = '';
   });
+
+  // Resource management search
+  document.getElementById('admin-resources-search')?.addEventListener('input', debounce(() => {
+    adminResourcesState.keyword = document.getElementById('admin-resources-search').value.trim();
+    adminResourcesState.page = 1;
+    loadAdminResourcesList();
+  }, 300));
+
+  // Resource management subject filter
+  document.getElementById('admin-resources-subject-filter')?.addEventListener('change', (e) => {
+    adminResourcesState.subjectId = e.target.value;
+    adminResourcesState.page = 1;
+    loadAdminResourcesList();
+  });
+
+  // Resource management select all
+  document.getElementById('admin-resources-select-all')?.addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    document.querySelectorAll('.admin-resource-checkbox').forEach(cb => {
+      cb.checked = checked;
+      if (checked) {
+        adminResourcesState.selectedIds.add(cb.dataset.id);
+      } else {
+        adminResourcesState.selectedIds.delete(cb.dataset.id);
+      }
+    });
+    updateSelectionUI();
+  });
+
+  // Batch delete button
+  document.getElementById('btn-batch-delete')?.addEventListener('click', batchDeleteResources);
 
   // Admin add subject
   document.getElementById('admin-add-subject')?.addEventListener('click', addSubject);

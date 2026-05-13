@@ -6,12 +6,13 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_admin
 from ..db import get_db
 from ..models import LaterItem, Resource, Subject, User
-from ..schemas import ResourceOut, SubjectCreate, SubjectOut, SubjectUpdate
+from ..schemas import BatchDeleteRequest, ResourceListOut, ResourceOut, SubjectCreate, SubjectOut, SubjectUpdate
 from ..routers.subjects import resource_to_out
 
 import openpyxl
@@ -148,6 +149,81 @@ async def import_excel(
     db.commit()
 
     return {"created": created, "errors": errors}
+
+
+# ── Resource management (admin only) ──────────────────────
+
+
+@router.get("/resources", response_model=ResourceListOut)
+def admin_list_resources(
+    subject_id: str = None,
+    keyword: str = None,
+    page: int = 1,
+    page_size: int = 50,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """List all public resources with optional subject/keyword filters."""
+    query = db.query(Resource).filter(Resource.client_id == "default")
+
+    if subject_id:
+        query = query.filter(Resource.subject_id == subject_id)
+
+    if keyword:
+        like_term = f"%{keyword.strip()}%"
+        query = query.filter(
+            or_(
+                Resource.title.ilike(like_term),
+                Resource.url.ilike(like_term),
+                Resource.description.ilike(like_term),
+            )
+        )
+
+    total = query.count()
+    offset = max(0, (page - 1)) * page_size
+    items = (
+        query.order_by(Resource.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+
+    return ResourceListOut(
+        resources=[resource_to_out(item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.post("/resources/batch-delete")
+def admin_batch_delete_resources(
+    payload: BatchDeleteRequest,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Batch delete public resources by IDs. Only deletes client_id='default' resources."""
+    if not payload.resource_ids:
+        raise HTTPException(status_code=400, detail="请提供要删除的资源ID列表")
+
+    deleted = 0
+    errors = []
+
+    for rid in payload.resource_ids:
+        item = db.query(Resource).filter(Resource.id == rid).first()
+        if not item:
+            errors.append({"resource_id": rid, "error": "资源不存在"})
+            continue
+        if item.client_id != "default":
+            errors.append(
+                {"resource_id": rid, "error": "只能删除公共资源，无法删除用户个人资源"}
+            )
+            continue
+        db.delete(item)
+        deleted += 1
+
+    db.commit()
+    return {"deleted": deleted, "errors": errors}
 
 
 # ── Subject CRUD (admin only) ────────────────────────────

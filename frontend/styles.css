@@ -2267,6 +2267,319 @@ body {
   color: var(--text-primary);
 }
 
+/* ── Admin resource management ─────────────────── */
+
+.admin-resources-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.admin-resources-search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f7f7f9;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.admin-resources-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(43, 94, 207, 0.08);
+  background: #fff;
+}
+
+.admin-resources-search svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.admin-resources-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  min-width: 0;
+}
+
+.admin-resources-search input::placeholder {
+  color: #b0b5bd;
+}
+
+#admin-resources-subject-filter {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: #f7f7f9;
+  cursor: pointer;
+  min-width: 130px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#admin-resources-subject-filter:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(43, 94, 207, 0.08);
+}
+
+.admin-resources-stats {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.admin-resources-table-wrap {
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admin-resources-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-resources-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #f8f9fb;
+}
+
+.admin-resources-table thead::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-resources-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.admin-resources-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f3;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.admin-resources-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.admin-resources-table tbody tr:hover {
+  background: #fafbfd;
+}
+
+.admin-resources-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-resources-table .col-check {
+  width: 40px;
+  text-align: center;
+}
+
+.admin-resources-table .col-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.admin-resources-table .col-title {
+  min-width: 140px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.admin-resources-table .col-url {
+  min-width: 160px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-resources-table .col-url a {
+  color: var(--primary);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.admin-resources-table .col-url a:hover {
+  text-decoration: underline;
+}
+
+.admin-resources-table .col-subject {
+  width: 80px;
+  white-space: nowrap;
+}
+
+.admin-resources-table .col-platform {
+  width: 80px;
+  white-space: nowrap;
+}
+
+.admin-resources-table .col-tags {
+  min-width: 100px;
+  max-width: 160px;
+  overflow: hidden;
+}
+
+.admin-res-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #eff4ff;
+  color: #2b5ecf;
+  border: 1px solid #dbe7ff;
+  margin-right: 4px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.admin-resources-loading,
+.admin-resources-error {
+  text-align: center;
+  padding: 32px 16px !important;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.admin-resources-error {
+  color: #e53e3e;
+}
+
+.admin-resources-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  color: #c0c4cc;
+  gap: 12px;
+}
+
+.admin-resources-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.admin-resources-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-resources-selection {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.admin-resources-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-batch-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-batch-delete-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+
+.admin-batch-delete-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.admin-batch-delete-btn:disabled svg {
+  opacity: 0.5;
+}
+
+.admin-resources-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-page-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.admin-page-btn:hover:not(:disabled) {
+  background: #f5f7fb;
+  border-color: #c0c8d4;
+}
+
+.admin-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.admin-page-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 /* ── Resource preview ────────────────────────── */
 
 .preview-card {

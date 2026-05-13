@@ -110,6 +110,17 @@ class ResourceReview(BaseModel):
     status: str  # "approved" or "rejected"
 
 
+class BatchDeleteRequest(BaseModel):
+    resource_ids: List[str]
+
+
+class ResourceListOut(BaseModel):
+    resources: List[ResourceOut]
+    total: int
+    page: int
+    page_size: int
+
+
 class UrlExtractRequest(BaseModel):
     url: str
 
